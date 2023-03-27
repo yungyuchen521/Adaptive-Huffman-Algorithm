@@ -169,16 +169,22 @@ class HuffmanTree:
             CodeLenNode(code_len=code_len, order=order)
             for order, code_len in self._code_len_dict.items()
         ]
-        symbol_nodes.sort()
+        symbol_nodes.sort() # sort in descending order by code_len
+        max_code_len = symbol_nodes[0].code_len
 
-        code_len = 1
         self._root = CodeLenNode()
         self._cur = self._root
         parents = [self._root]
-        while symbol_nodes:
-            new_nodes = []
-            while symbol_nodes and symbol_nodes[-1].code_len == code_len: # binary search?
-                new_nodes.append(symbol_nodes.pop())
+
+        for code_len in range(1, max_code_len+1):
+            if code_len != symbol_nodes[-1].code_len:
+                new_nodes = []
+            else:
+                index = self._binary_search_node(symbol_nodes, code_len)
+                assert index != -1
+
+                new_nodes = symbol_nodes[index:]
+                symbol_nodes = symbol_nodes[:index]
 
             new_parents = []
             for p in parents:
@@ -199,6 +205,8 @@ class HuffmanTree:
             parents = new_parents
             code_len += 1
 
+        assert len(symbol_nodes) == 0
+
     def _set_code_len_dict(self, node: BaseNode, l: int):
         if node.is_symbol:
             self._code_len_dict[node.order] = l
@@ -212,3 +220,24 @@ class HuffmanTree:
         else:
             self._set_code_dict(node.left, f"{code}0")
             self._set_code_dict(node.right, f"{code}1")
+
+    @staticmethod
+    def _binary_search_node(nodes: List[CodeLenNode], target: int) -> int:
+        # nodes are sorted in descending order by code_len
+        left, right = 0, len(nodes) - 1
+
+        index = right+1
+        while left <= right:
+            mid = (left + right) // 2
+            l = nodes[mid].code_len
+            assert l is not None
+
+            if l > target:
+                left = mid+1
+            elif l <= target:
+                if l == target:
+                    index = min(mid, index)
+
+                right = mid-1
+
+        return (-1 if index >= len(nodes) else index)
