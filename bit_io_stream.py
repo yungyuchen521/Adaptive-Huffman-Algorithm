@@ -1,61 +1,60 @@
-from typing import Union
-from io import BufferedReader, BufferedWriter
+from typing import Union, BinaryIO
 from utils import BITS_PER_BYTE
 
-BITS_PER_BYTE = 8
+
 IO_MODE_BIT = "IO_MODE_BIT"
 IO_MODE_BYTE = "IO_MODE_BYTE"
 
 
 class BitInStream:
-    EOF = -1
-
-    def __init__(self, file_obj: BufferedReader, mode: str):
-        # to avoid "\r" -> "\n" issues
-        # file_obj should be opened with "rb"
-        self._file_obj: BufferedReader = file_obj
-        self._byte: int = 0
-        self._bits_cnt: int = 0
-
+    def __init__(self, file_obj: BinaryIO, mode: str):
         assert mode in (IO_MODE_BIT, IO_MODE_BYTE)
         self._mode = mode
 
-    def read(self) -> int:
-        return (
-            self._read_bit()
-            if self._mode == IO_MODE_BIT
-            else self._read_byte()
-        )
+        # to avoid "\r" -> "\n" issues
+        # file_obj should be opened with "rb"
+        self._file_obj: BinaryIO = file_obj
+        self._byte: int = 0
+        self._bits_cnt: int = 0
 
-    def _read_bit(self) -> int:
+    def read(self, n: int=1) -> str:
+        assert n > 0
+
+        if self._mode == IO_MODE_BIT:
+            if n > 1:
+                print("Reading more than 1 bit at a time is not supported.")
+
+            return self._read_bit()
+        else:
+            return self._read_byte(n)
+
+    def _read_bit(self) -> str:
         if self._bits_cnt == 0:
             tmp = self._file_obj.read(1)
             if len(tmp) == 0:
-                return self.EOF
-            
+                return ""
+
             self._byte = tmp[0] # order of the character
             self._bits_cnt = BITS_PER_BYTE
 
         assert 0 < self._bits_cnt <= BITS_PER_BYTE
         self._bits_cnt -= 1
 
-        return (self._byte >> self._bits_cnt) & 1
+        bit = (self._byte >> self._bits_cnt) & 1
+        return str(bit)
 
-    def _read_byte(self) -> int:
-        tmp = self._file_obj.read(1)
-        if len(tmp) == 0:
-            return self.EOF
-        else:
-            return tmp[0]  # order of the character
+    def _read_byte(self, n: int) -> str:
+        tmp = self._file_obj.read(n)
+        return "".join([chr(b) for b in tmp])
 
     def close(self):
         self._file_obj.close()
 
 class BitOutStream:
-    def __init__(self, file_obj: BufferedWriter, mode: str):
+    def __init__(self, file_obj: BinaryIO, mode: str):
         # to avoid "\r" -> "\n" issues
-        # file_obj should be opened with "wb"
-        self._file_obj: BufferedWriter = file_obj
+        # file_obj should be opened with "wb" / "ab"
+        self._file_obj: BinaryIO = file_obj
         self._byte: int = 0
         self._bits_cnt: int = 0
 
@@ -98,8 +97,9 @@ class BitOutStream:
             self._bits_cnt = 0
 
     def _write_byte(self, byte: str):
-        output = self._to_bytes(byte)
-        self._file_obj.write(output)
+        for b in byte:
+            output = self._to_bytes(b)
+            self._file_obj.write(output)
 
     @staticmethod
     def _to_bytes(c: Union[str, int]) -> bytes:
@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
             assert stream.flush() == 0
 
-        with open(TEST_FILE_NAME, "rb") as f:
+        with open(TEST_FILE_NAME, "rb", 1024) as f:
             stream = BitInStream(f, mode=IO_MODE_BIT)
             buffer = 0
             string = ""

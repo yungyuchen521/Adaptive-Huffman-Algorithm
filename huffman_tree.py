@@ -1,17 +1,13 @@
 from typing import Dict, List, Optional
 import heapq
+from math import log2
+
+from utils import extended_chr, extended_ord
 
 
 class BaseNode:
-    def __init__(self, order: int, left=None, right=None):
-        # if order < 0:
-        #     assert isinstance(left, BaseNode)
-        #     assert isinstance(right, BaseNode)
-        # else:
-        #     assert left is None
-        #     assert right is None
-
-        self._order: int = order
+    def __init__(self, symbol: str, left=None, right=None):
+        self._symbol: str = symbol
         self._left: BaseNode = left
         self._right: BaseNode = right
 
@@ -20,11 +16,11 @@ class BaseNode:
 
     @property
     def is_symbol(self):
-        return self._order >= 0
+        return len(self._symbol) > 0
 
     @property
-    def order(self):
-        return self._order
+    def symbol(self):
+        return self._symbol
 
     @property
     def left(self):
@@ -37,23 +33,23 @@ class BaseNode:
     @property
     def freq(self):
         raise NotImplementedError()
-    
+
     @property
     def code_len(self):
         raise NotImplementedError()
 
 
 class FreqNode(BaseNode):
-    def __init__(self, freq: int, order: int=-1, left: Optional[BaseNode]=None, right: Optional[BaseNode]=None):
-        super().__init__(order, left, right)
+    def __init__(self, freq: int, symbol: str="", left: Optional[BaseNode]=None, right: Optional[BaseNode]=None):
+        super().__init__(symbol, left, right)
         self._freq: int = freq
 
     def __str__(self):
-        return f"freq={self._freq}||order={self._order}"
+        return f"freq={self._freq}||symbol={self._symbol}"
 
     def __lt__(self, node):
         return (
-            self._order < node.order
+            self._symbol < node.symbol
             if self._freq == node.freq
             else self._freq < node.freq 
         )
@@ -64,20 +60,19 @@ class FreqNode(BaseNode):
 
 
 class CodeLenNode(BaseNode):
-    def __init__(self, code_len: Optional[int]=None, order: int=-1):
-        super().__init__(order, None, None)
+    def __init__(self, code_len: Optional[int]=None, symbol: str=""):
+        super().__init__(symbol, None, None)
         
-        self._code_len = code_len
-        self._order = order
+        self._code_len: int = code_len
+        self._symbol: str = symbol
 
     def __str__(self):
-        return f"code_len={self._code_len}||chr={chr(self._order) if self._order >= 0 else None}"
+        return f"code_len={self._code_len}||symbol={self._symbol}"
 
     def __lt__(self, node):
-        assert self._order is not None and node.order is not None
-        assert self._order >= 0 and node.order >= 0
+        assert self.is_symbol and node.is_symbol
         return (
-            self._order > node.order
+            self._symbol > node.symbol
             if self._code_len == node.code_len 
             else self._code_len > node.code_len 
         )
@@ -98,10 +93,10 @@ class CodeLenNode(BaseNode):
 
 
 class HuffmanTree:
-    def __init__(self, symbol_distribution: Dict[int, int]=None, code_len_table: List[int]=None):
+    def __init__(self, symbol_distribution: Dict[str, int]=None, code_len_table: List[int]=None):
         self._root: BaseNode
-        self._code_dict: Dict[int, str] = {}  # for encoding only
-        self._code_len_dict: Dict[int, int] = {}
+        self._code_dict: Dict[str, str] = {}  # for encoding only
+        self._code_len_dict: Dict[str, int] = {}
         self._cur: BaseNode  # for decoding only
 
         if symbol_distribution:
@@ -111,12 +106,15 @@ class HuffmanTree:
             self._set_code_dict(self._root, "")
 
             # ==================== for debug purpose only ==================== 
-            for order, code in self._code_dict.items():
-                if len(code) != self._code_len_dict[order]:
-                    print(f"{chr(order)}: original code len = {self._code_len_dict[order]}, after rebuilt is {len(code)} ({code})")
+            for symbol, code in self._code_dict.items():
+                if len(code) != self._code_len_dict[symbol]:
+                    print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
         elif code_len_table:
+            bits_per_symbol = int(log2(len(code_len_table)))
+            assert 2 ** bits_per_symbol == len(code_len_table)
+
             self._code_len_dict = {
-                order: code_len
+                extended_chr(order, bits_per_symbol): code_len
                 for order, code_len in enumerate(code_len_table)
                 if code_len > 0
             }
@@ -140,13 +138,13 @@ class HuffmanTree:
             )
 
             if self._cur.is_symbol:
-                yield self._cur.order
+                yield self._cur.symbol
                 self._cur = self._root
 
-    def _build_by_distribution(self, symbol_distribution: Dict[int, int]):
+    def _build_by_distribution(self, symbol_distribution: Dict[str, int]):
         nodes = [
-            FreqNode(freq=count, order=order) 
-            for order, count in symbol_distribution.items()
+            FreqNode(freq=count, symbol=symbol) 
+            for symbol, count in symbol_distribution.items()
         ]
 
         heapq.heapify(nodes)
@@ -166,8 +164,8 @@ class HuffmanTree:
 
     def _build_by_code_len(self):
         symbol_nodes = [
-            CodeLenNode(code_len=code_len, order=order)
-            for order, code_len in self._code_len_dict.items()
+            CodeLenNode(code_len=code_len, symbol=symbol)
+            for symbol, code_len in self._code_len_dict.items()
         ]
         symbol_nodes.sort() # sort in descending order by code_len
         max_code_len = symbol_nodes[0].code_len
@@ -201,7 +199,7 @@ class HuffmanTree:
                     n = CodeLenNode()
                     p.set_right(n)
                     new_parents.append(n)
-            
+
             parents = new_parents
             code_len += 1
 
@@ -209,14 +207,14 @@ class HuffmanTree:
 
     def _set_code_len_dict(self, node: BaseNode, l: int):
         if node.is_symbol:
-            self._code_len_dict[node.order] = l
+            self._code_len_dict[node.symbol] = l
         else:
             self._set_code_len_dict(node.left, l+1)
             self._set_code_len_dict(node.right, l+1)
 
     def _set_code_dict(self, node: BaseNode, code: str):
         if node.is_symbol:
-            self._code_dict[node.order] = code
+            self._code_dict[node.symbol] = code
         else:
             self._set_code_dict(node.left, f"{code}0")
             self._set_code_dict(node.right, f"{code}1")
