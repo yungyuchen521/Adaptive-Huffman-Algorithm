@@ -131,19 +131,18 @@ if __name__ == "__main__":
     def test_byte_io(rand_str: str):
         with open(TEST_FILE_NAME, "wb") as f:
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
-            for c in rand_str:
-                stream.write(c)
+            stream.write(rand_str)
 
         with open(TEST_FILE_NAME, "rb") as f:
             stream = BitInStream(f, mode=IO_MODE_BYTE)
             string = ""
 
             while True:
-                char_order = stream.read()
-                if char_order == BitInStream.EOF:
+                c = stream.read()
+                if not c:
                     break
 
-                string += chr(char_order)
+                string += c
 
         if string != rand_str:
             raise AssertionError(f"\norg: {rand_str}\nres: {string}")
@@ -176,13 +175,13 @@ if __name__ == "__main__":
             while not eof:
                 for _ in range(BITS_PER_BYTE):
                     bit = stream.read()
-                    if bit == BitInStream.EOF:
+                    if not bit:
                         eof = True
                         break
                     
-                    assert bit in (0, 1)
+                    assert bit in "01"
                     buffer <<= 1
-                    buffer += bit
+                    buffer += (bit == "1")
                 
                 if not (0 <= buffer < 256):
                     raise AssertionError(f"buffer={buffer}")
