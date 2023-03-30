@@ -16,6 +16,8 @@ from base_coder import BaseAdaptiveCoder
 
 
 class AdaptiveDecoder(BaseAdaptiveCoder):
+    BITS_PER_READ = 256  # more convenient to strip off dummy bits & dummy bytes
+
     def __init__(self, period: int):
         super().__init__(period)
 
@@ -29,10 +31,10 @@ class AdaptiveDecoder(BaseAdaptiveCoder):
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
 
-            next_bit_seq = self._get_bit_seuence(istream)
+            next_bit_seq = istream.read(self.BITS_PER_READ)
             while next_bit_seq:
                 curr_bit_seq = next_bit_seq
-                next_bit_seq = self._get_bit_seuence(istream)
+                next_bit_seq = istream.read(self.BITS_PER_READ)
 
                 if 0 < len(next_bit_seq) < 64:
                     curr_bit_seq += next_bit_seq
@@ -43,7 +45,7 @@ class AdaptiveDecoder(BaseAdaptiveCoder):
                     curr_bit_seq = curr_bit_seq[:-dummy_bits-BITS_PER_BYTE]
 
                 for bit in curr_bit_seq:
-                    symbol = self._tree.decode_bit(bit)
+                    symbol = self._tree.decode(bit)
                     if symbol:
                         ostream.write(symbol)
                         self._symbol_cnt += 1
@@ -60,16 +62,3 @@ class AdaptiveDecoder(BaseAdaptiveCoder):
             dummy_bits = ord(stream.read(1))
 
         return dummy_bits
-
-    def _get_bit_seuence(self, stream: BitInStream) -> str:
-        # read 8 bytes and converts it to bit sequence (e.g. 010010101...)
-        seq = ""
-        for _ in range(MAX_BYTE_PER_SYMBOL * BITS_PER_BYTE):
-            bit = stream.read()
-            if len(bit) == 0:
-                break
-
-            seq += bit
-
-        assert len(seq) % BITS_PER_BYTE == 0
-        return seq

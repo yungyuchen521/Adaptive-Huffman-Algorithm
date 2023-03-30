@@ -21,27 +21,31 @@ class BitInStream:
         assert n > 0
 
         if self._mode == IO_MODE_BIT:
-            if n > 1:
-                print("Reading more than 1 bit at a time is not supported.")
+            # if n > 1:
+            #     print("Reading more than 1 bit at a time is not supported.")
 
-            return self._read_bit()
+            return self._read_bit(n)
         else:
             return self._read_byte(n)
 
-    def _read_bit(self) -> str:
-        if self._bits_cnt == 0:
-            tmp = self._file_obj.read(1)
-            if len(tmp) == 0:
-                return ""
+    def _read_bit(self, n: int) -> str:
+        bit_seq = ""
+        for _ in range(n):
+            if self._bits_cnt == 0:
+                tmp = self._file_obj.read(1)
+                if len(tmp) == 0:
+                    break
 
-            self._byte = tmp[0] # order of the character
-            self._bits_cnt = BITS_PER_BYTE
+                self._byte = tmp[0] # order of the character
+                self._bits_cnt = BITS_PER_BYTE
 
-        assert 0 < self._bits_cnt <= BITS_PER_BYTE
-        self._bits_cnt -= 1
+            assert 0 < self._bits_cnt <= BITS_PER_BYTE
+            self._bits_cnt -= 1
 
-        bit = (self._byte >> self._bits_cnt) & 1
-        return str(bit)
+            bit = (self._byte >> self._bits_cnt) & 1
+            bit_seq += str(bit)
+        
+        return bit_seq
 
     def _read_byte(self, n: int) -> str:
         tmp = self._file_obj.read(n)

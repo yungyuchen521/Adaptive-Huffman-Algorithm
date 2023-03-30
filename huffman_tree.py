@@ -134,21 +134,7 @@ class HuffmanTree:
     def code_dict(self):
         return self._code_dict
 
-    def decode(self, bits: str):
-        for b in bits:
-            assert b in "01"
-
-            self._cur = (
-                self._cur.left
-                if b == "0"
-                else self._cur.right
-            )
-
-            if self._cur.is_symbol:
-                yield self._cur.symbol
-                self._cur = self._root
-
-    def decode_bit(self, bit: str):
+    def decode(self, bit: str) -> Optional[str]:
         assert bit == "0" or bit == "1"
         self._cur = (
             self._cur.left

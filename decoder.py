@@ -16,6 +16,8 @@ from huffman_tree import HuffmanTree
 
 
 class Decoder:
+    BITS_PER_READ = 256  # more convenient to strip off dummy bits & dummy bytes
+    
     def __init__(self):
         self._bits_per_symbol: int
         self._bytes_per_symbol: int
@@ -33,15 +35,19 @@ class Decoder:
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
 
-            next_bit_seq = self._get_bit_seuence(istream)
+            next_bit_seq = istream.read(self.BITS_PER_READ)
             while next_bit_seq:
                 curr_bit_seq = next_bit_seq
-                next_bit_seq = self._get_bit_seuence(istream)
+                next_bit_seq = istream.read(self.BITS_PER_READ)
 
                 if not next_bit_seq and self._dummy_codeword_bits > 0:
                     curr_bit_seq = curr_bit_seq[:-self._dummy_codeword_bits]
-
-                symbols = "".join(list(self._tree.decode(curr_bit_seq)))
+                
+                symbols = ""
+                for bit in curr_bit_seq:
+                    symbol = self._tree.decode(bit)
+                    if symbol:
+                       symbols += symbol
 
                 if not next_bit_seq and self._dummy_symbol_bytes > 0:
                     symbols = symbols[:-self._dummy_symbol_bytes]
@@ -69,16 +75,3 @@ class Decoder:
 
         self._tree = HuffmanTree(code_len_table=code_len_table)
         self._code_dict = self._tree.code_dict  # for debug purpose
-
-    def _get_bit_seuence(self, stream: BitInStream) -> str:
-        # read 8 bytes and converts it to bit sequence (e.g. 010010101...)
-        seq = ""
-        for _ in range(MAX_BYTE_PER_SYMBOL * BITS_PER_BYTE):
-            bit = stream.read()
-            if len(bit) == 0:
-                break
-
-            seq += bit
-
-        assert len(seq) % BITS_PER_BYTE == 0
-        return seq
