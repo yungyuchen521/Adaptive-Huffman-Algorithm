@@ -48,7 +48,7 @@ class Decoder:
     
                 ostream.write(symbols)
 
-        # assert self._tree._cur == self._tree._root
+        assert self._tree._cur == self._tree._root
 
     def _parse_header(self, file_obj: BinaryIO):
         # {bits per symbol}{dummy symbol bytes}{code length table}{dummy codeword bits}
@@ -71,9 +71,9 @@ class Decoder:
         self._code_dict = self._tree.code_dict  # for debug purpose
 
     def _get_bit_seuence(self, stream: BitInStream) -> str:
-        # read 8 bytes and converts it to bit sequence (e.g. 010010101)
+        # read 8 bytes and converts it to bit sequence (e.g. 010010101...)
         seq = ""
-        for _ in range(MAX_BYTE_PER_SYMBOL):
+        for _ in range(MAX_BYTE_PER_SYMBOL * BITS_PER_BYTE):
             bit = stream.read()
             if len(bit) == 0:
                 break

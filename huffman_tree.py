@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 import heapq
 from math import log2
 
-from utils import extended_chr, extended_ord
+from utils import extended_chr
 
 
 class BaseNode:
@@ -93,23 +93,30 @@ class CodeLenNode(BaseNode):
 
 
 class HuffmanTree:
-    def __init__(self, symbol_distribution: Dict[str, int]=None, code_len_table: List[int]=None):
+    def __init__(self, **kwargs):
         self._root: BaseNode
         self._code_dict: Dict[str, str] = {}  # for encoding only
         self._code_len_dict: Dict[str, int] = {}
         self._cur: BaseNode  # for decoding only
 
-        if symbol_distribution:
-            self._build_by_distribution(symbol_distribution)
-            self._set_code_len_dict(self._root, 0)
-            self._build_by_code_len()
-            self._set_code_dict(self._root, "")
+        self._adaptive: bool = kwargs.get("adaptive", False)
 
-            # ==================== for debug purpose only ==================== 
-            for symbol, code in self._code_dict.items():
-                if len(code) != self._code_len_dict[symbol]:
-                    print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
-        elif code_len_table:
+        if "symbol_distribution" in kwargs:
+            self._build_by_distribution(kwargs["symbol_distribution"])
+
+            if self._adaptive is True:
+                self._set_code_dict(self._root, "")
+            else:
+                self._set_code_len_dict(self._root, 0)
+                self._build_by_code_len()
+                self._set_code_dict(self._root, "")
+
+                # ==================== for debug purpose only ==================== 
+                for symbol, code in self._code_dict.items():
+                    if len(code) != self._code_len_dict[symbol]:
+                        print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
+        elif "code_len_table" in kwargs:
+            code_len_table = kwargs["code_len_table"]
             bits_per_symbol = int(log2(len(code_len_table)))
             assert 2 ** bits_per_symbol == len(code_len_table)
 
@@ -141,6 +148,22 @@ class HuffmanTree:
                 yield self._cur.symbol
                 self._cur = self._root
 
+    def decode_bit(self, bit: str):
+        assert bit == "0" or bit == "1"
+        self._cur = (
+            self._cur.left
+            if bit == "0"
+            else self._cur.right
+        )
+
+        if self._cur.is_symbol:
+            symbol = self._cur.symbol
+            self._cur = self._root
+        else:
+            symbol = None
+
+        return symbol
+
     def _build_by_distribution(self, symbol_distribution: Dict[str, int]):
         nodes = [
             FreqNode(freq=count, symbol=symbol) 
@@ -161,6 +184,7 @@ class HuffmanTree:
             heapq.heappush(nodes, parent)
 
         self._root = nodes.pop()
+        self._cur = self._root
 
     def _build_by_code_len(self):
         symbol_nodes = [

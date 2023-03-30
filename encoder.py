@@ -99,9 +99,8 @@ class Encoder:
                     assert self._dummy_symbol_bytes == self._bytes_per_symbol - len(symbol)
                     symbol += chr(0) * self._dummy_symbol_bytes
 
-                code_word = code_dict[symbol]
-                for c in code_word:
-                    ostream.write(c)
+                for bit in code_dict[symbol]:
+                    ostream.write(bit)
 
             trailing_bits = ostream.flush()
             dummy_bits = 0 if trailing_bits == 0 else BITS_PER_BYTE - trailing_bits
