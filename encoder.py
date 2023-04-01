@@ -1,11 +1,15 @@
-from typing import Optional, Dict
+from typing import Dict, Optional
+from math import ceil, log2
+from pathlib import Path
 
 from utils import (
     BITS_PER_BYTE,
     BUFFER_SIZE,
     MAX_BYTE_PER_SYMBOL,
+    COMP_FILE_EXTENSION,
     extended_chr,
 )
+from base_coder import BaseStaticCoder
 from bit_io_stream import (
     BitInStream,
     BitOutStream,
@@ -15,36 +19,123 @@ from bit_io_stream import (
 from huffman_tree import HuffmanTree
 
 
-class Encoder:
-    def __init__(self, bytes_per_symbol: int):
+class Encoder(BaseStaticCoder):
+    def __init__(self, bytes_per_symbol: int, verbose: int=0):
         assert 0 < bytes_per_symbol <= MAX_BYTE_PER_SYMBOL
+        super().__init__(verbose)
 
-        self._bytes_per_symbol: int = bytes_per_symbol
-        self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
-        self._symbol_distributions: Dict[str, int] = {}
+        self._bytes_per_symbol = bytes_per_symbol
+        self._bits_per_symbol = bytes_per_symbol * BITS_PER_BYTE
 
-        self._dummy_symbol_bytes: int = 0
-        self._dummy_codeword_bits: int = 0
+        self._src_file_path: str
+        self._comp_file_path: str
+
+        self._total_symbols: int = 0                     # number of symbols in the original file
+        self._symbol_distributions: Dict[str, int] = {}  # count for each symbol in the file
+        self._bits_written: int
 
     def encode(self, src_file_path: str, comp_file_path: Optional[str]=None):
+        self._reset()
         self._generate_symbol_dist(src_file_path)
 
         if comp_file_path is None:
-            comp_file_path = f"{src_file_path}.comp"
+            comp_file_path = f"{src_file_path}.{COMP_FILE_EXTENSION}"
 
-        if len(self._symbol_distributions) == 0:
-            with open(comp_file_path, "w"): pass
-            return
-        elif len(self._symbol_distributions) == 1:
-            self._code_dict = { symbol: "0" for symbol in self._symbol_distributions }
+        self._src_file_path = src_file_path
+        self._comp_file_path = comp_file_path
+
+        if len(self._symbol_distributions) < 2:
+            raise NotImplementedError()
         else:
             self._tree = HuffmanTree(symbol_distribution=self._symbol_distributions)
-            self._code_dict = self._tree.code_dict
 
-        self._write_header(self._code_dict, comp_file_path)
-        self._write_content(self._code_dict, src_file_path, comp_file_path)
+        self._write_header(comp_file_path)
+        self._write_content(src_file_path, comp_file_path)
+
+        if self._verbose > 0:
+            comp_ratio = self.get_compression_ratio(False)
+            self._logger.warning(f"compression ratio: {comp_ratio}")
+
+    def get_compression_ratio(self, consider_header: bool=True) -> float:
+        comp_size = ceil(self._bits_written / BITS_PER_BYTE)
+        if consider_header:
+            comp_size += 3 + (2**self._bits_per_symbol) * self._bytes_per_symbol
+
+        return 1 - comp_size / self.total_bytes
+
+    def export_statistics(self, dir_path: str):
+        while Path(dir_path).exists():
+            dir_path += "_"
+
+        path = Path(dir_path)
+
+        with open(path/"stats.txt", "w") as f:
+            f.write(f"bytes per symbol: {self._bytes_per_symbol}\n")
+            f.write(f"total symbols: {self._total_symbols}\n")
+
+        with open(path/"distributions.txt", "w") as f:
+            for cnt in self._symbol_distributions:
+                f.write(f"{cnt}\n")
+
+        with open(path/"code.txt", "w") as f:
+            for symbol, code in self.code_dict.items():
+                f.write(f"{symbol}: {code}\n")
+
+        with open(path/"performance.txt", "w") as f:
+            f.write(f"entropy: {self.entropy}")
+            f.write(f"average codeword length: {self.codelen_per_symbol}\n")
+            f.write(f"compression ratio (including header): {self.get_compression_ratio(consider_header=True)}\n")
+            f.write(f"compression ratio (without header): {self.get_compression_ratio(consider_header=False)}\n")
+
+    @property
+    def total_symbols(self):
+        return self._total_symbols
+
+    @property
+    def total_bytes(self) -> int:
+        return self._total_symbols * self._bytes_per_symbol - self._dummy_symbol_bytes
+
+    @property
+    def symbol_distributions(self):
+        return self._symbol_distributions
+
+    @property
+    def entropy(self) -> float:
+        ent = 0
+
+        for cnt in self._symbol_distributions.values():
+            p = cnt / self._total_symbols
+            ent -= p * log2(p)
+        
+        return ent
+
+    @property
+    def code_dict(self) -> Dict[str, str]:
+        return self._tree.code_dict
+
+    @property
+    def codelen_per_symbol(self) -> float:
+        total_codelen = 0
+
+        for symbol, cnt in self._symbol_distributions.items():
+            total_codelen += cnt * len(self.code_dict[symbol])
+        
+        return total_codelen / len(self._symbol_distributions)
+
+    @property
+    def codelen_per_byte(self) -> float:
+        return self.codelen_per_symbol / self._bytes_per_symbol
+
+    def _reset(self):
+        super()._reset()
+        self._total_symbols = 0
+        self._symbol_distributions = {}
+        self._bits_written = 0
 
     def _generate_symbol_dist(self, src_file_path: str):
+        if self._verbose > 0:
+            self._logger.warning(f"{self.__class__.__name__} calculating symbol distribution...")
+
         with open(src_file_path, "rb", BUFFER_SIZE) as f:
             stream = BitInStream(f, IO_MODE_BYTE)
 
@@ -61,9 +152,15 @@ class Encoder:
                     self._symbol_distributions[symbol] += 1
                 else:
                     self._symbol_distributions[symbol] = 1
+                
+                self._total_symbols += 1
 
-    def _write_header(self, code_dict: Dict[str, str], comp_file_path: str):
+    def _write_header(self, comp_file_path: str):
+        if self._verbose > 0:
+            self._logger.warning(f"{self.__class__.__name__} writing compression header...")
+
         # {bits per symbol}{dummy symbol bytes}{code length table}{dummy codeword bits}
+        code_dict = self._tree.code_dict
 
         with open(comp_file_path, "wb", BUFFER_SIZE) as f:
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
@@ -85,7 +182,12 @@ class Encoder:
             self._dummy_codeword_bits = (BITS_PER_BYTE - trailing_bits) % BITS_PER_BYTE
             stream.write(chr(self._dummy_codeword_bits))
 
-    def _write_content(self, code_dict: Dict[str, str], src_file_path: str, comp_file_path: str):
+    def _write_content(self, src_file_path: str, comp_file_path: str):
+        if self._verbose > 0:
+            self._logger.warning(f"{self.__class__.__name__} compressing file content")
+
+        code_dict = self._tree.code_dict
+
         with open(src_file_path, "rb", BUFFER_SIZE) as src, open(comp_file_path, "ab", BUFFER_SIZE) as comp:
             istream = BitInStream(src, mode=IO_MODE_BYTE)
             ostream = BitOutStream(comp, mode=IO_MODE_BIT)
@@ -100,6 +202,7 @@ class Encoder:
                     symbol += chr(0) * self._dummy_symbol_bytes
 
                 for bit in code_dict[symbol]:
+                    self._bits_written += 1
                     ostream.write(bit)
 
             trailing_bits = ostream.flush()

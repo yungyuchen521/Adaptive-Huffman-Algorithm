@@ -1,6 +1,9 @@
 BITS_PER_BYTE = 8
-BUFFER_SIZE = 1024
+BUFFER_SIZE = 8 * 1024
 MAX_BYTE_PER_SYMBOL = 8
+
+COMP_FILE_EXTENSION = "comp"
+DECOMP_FILE_EXTENSION = "decomp"
 
 
 def extended_ord(string: str) -> int:

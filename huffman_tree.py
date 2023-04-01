@@ -60,7 +60,7 @@ class FreqNode(BaseNode):
 
 
 class CodeLenNode(BaseNode):
-    def __init__(self, code_len: Optional[int]=None, symbol: str=""):
+    def __init__(self, code_len: int=0, symbol: str=""):
         super().__init__(symbol, None, None)
         
         self._code_len: int = code_len
