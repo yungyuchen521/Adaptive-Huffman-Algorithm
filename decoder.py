@@ -1,5 +1,6 @@
 from typing import Optional, BinaryIO
 import sys
+import io
  
 from base_coder import BaseStaticCoder
 from utils import (
@@ -18,7 +19,7 @@ from huffman_tree import HuffmanTree
 
 
 class Decoder(BaseStaticCoder):
-    BITS_PER_READ = 256  # more convenient to strip off dummy bits & dummy bytes
+    BITS_PER_READ = 256  # more convenient to strip off dummy bits
     
     def __init__(self, verbose: int=0):
         super().__init__(verbose)
@@ -50,13 +51,11 @@ class Decoder(BaseStaticCoder):
                     if symbol:
                        symbols += symbol
 
-                if not next_bit_seq and self._dummy_symbol_bytes > 0:
-                    symbols = symbols[:-self._dummy_symbol_bytes]
-
                 ostream.write(symbols)
 
         self.code_dict = self._tree.code_dict
         assert self._tree._cur == self._tree._root
+        self._trunc(decomp_file_path)
 
     def _parse_header(self, file_obj: BinaryIO):
         if self._verbose > 0:
@@ -71,18 +70,30 @@ class Decoder(BaseStaticCoder):
         self._bytes_per_symbol = self._bits_per_symbol // BITS_PER_BYTE
         self._dummy_symbol_bytes = ord(stream.read(1))
         code_len_dict_size = extended_ord(stream.read(self._bytes_per_symbol))
+        if code_len_dict_size == 0:
+            # 0 represents 2 ** self._bits_per_symbol
+            code_len_dict_size = 2 ** self.bits_per_symbol
 
         code_len_dict = {}
         for _ in range(code_len_dict_size):
             symbol = stream.read(self._bytes_per_symbol)
-            codelen = extended_ord(stream.read(self._bytes_per_symbol))
+            code_len = extended_ord(stream.read(self._bytes_per_symbol))
 
-            code_len_dict[symbol] = codelen
-
+            # 0 irepresents 2 ** self._bits_per_symbol
+            code_len_dict[symbol] = (2 ** self._bits_per_symbol if code_len == 0 else code_len)
+        
         self._dummy_codeword_bits = ord(stream.read(1))
 
         self._tree = HuffmanTree(code_len_dict=code_len_dict)
 
+    def _trunc(self, decomp_file_path: str):
+        # strip off dummy symbol bytes
+        if self._dummy_symbol_bytes == 0:
+            return
+
+        with open(decomp_file_path, "r+b") as f:
+            f.seek(-self._dummy_symbol_bytes, io.SEEK_END)
+            f.truncate()
 
 if __name__ == "__main__":
     kwargs = dict([arg.split("=") for arg in sys.argv[1:]])

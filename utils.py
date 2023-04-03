@@ -1,5 +1,5 @@
 BITS_PER_BYTE = 8
-BUFFER_SIZE = 8 * 1024
+BUFFER_SIZE = 256 * 1024
 MAX_BYTE_PER_SYMBOL = 8
 
 COMP_FILE_EXTENSION = "comp"
@@ -23,4 +23,5 @@ def extended_chr(order: int, bits_per_symbol: int) -> str:
         symbol = f"{chr(order % 2**BITS_PER_BYTE)}{symbol}"
         order >>= BITS_PER_BYTE
 
+    assert order == 0
     return symbol

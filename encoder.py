@@ -86,7 +86,7 @@ class Encoder(BaseStaticCoder):
 
         with open(dir_path/"performance.txt", "w") as f:
             f.write(f"entropy: {self.entropy}\n")
-            f.write(f"average codeword length: {self.codelen_per_symbol}\n")
+            f.write(f"average codeword length: {self.code_len_per_symbol}\n")
             f.write(f"compression ratio (including header): {self.get_compression_ratio(consider_header=True)}\n")
             f.write(f"compression ratio (without header): {self.get_compression_ratio(consider_header=False)}\n")
 
@@ -117,7 +117,7 @@ class Encoder(BaseStaticCoder):
         return self._tree.code_dict
 
     @property
-    def codelen_per_symbol(self) -> float:
+    def code_len_per_symbol(self) -> float:
         total_codelen = 0
 
         for symbol, cnt in self._symbol_distributions.items():
@@ -126,8 +126,8 @@ class Encoder(BaseStaticCoder):
         return total_codelen / self._total_symbols
 
     @property
-    def codelen_per_byte(self) -> float:
-        return self.codelen_per_symbol / self._bytes_per_symbol
+    def code_len_per_byte(self) -> float:
+        return self.code_len_per_symbol / self._bytes_per_symbol
 
     def _reset(self):
         super()._reset()
@@ -171,7 +171,12 @@ class Encoder(BaseStaticCoder):
 
             stream.write(chr(self._bits_per_symbol))
             stream.write(chr(self._dummy_symbol_bytes))
-            stream.write(extended_chr(len(code_dict), self._bits_per_symbol))
+
+            if len(code_dict) == 2 ** self._bits_per_symbol:
+                # 0 is never used, used it to represent 2 ** self._bits_per_symbol
+                stream.write(extended_chr(0, self._bits_per_symbol))
+            else:
+                stream.write(extended_chr(len(code_dict), self._bits_per_symbol))
 
             trailing_bits = 0  # bits insufficient to make a byte
             for symbol, code in code_dict.items():
@@ -181,7 +186,12 @@ class Encoder(BaseStaticCoder):
                 trailing_bits %= BITS_PER_BYTE
 
                 stream.write(symbol)
-                stream.write(extended_chr(code_len, self._bits_per_symbol))
+
+                if code_len == 2 ** self._bits_per_symbol:
+                    # 0 is never used, used it to represent 2 ** self._bits_per_symbol
+                    stream.write(extended_chr(0, self._bits_per_symbol))
+                else:
+                    stream.write(extended_chr(code_len, self._bits_per_symbol))
 
             self._dummy_codeword_bits = (BITS_PER_BYTE - trailing_bits) % BITS_PER_BYTE
             stream.write(chr(self._dummy_codeword_bits))
