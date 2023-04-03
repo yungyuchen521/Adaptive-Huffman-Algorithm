@@ -2,7 +2,7 @@ from typing import Dict
 import logging
 
 from huffman_tree import HuffmanTree
-from utils import BITS_PER_BYTE
+from utils import extended_chr
 
 
 class BaseStaticCoder:
@@ -55,23 +55,36 @@ class BaseStaticCoder:
 
 
 class BaseAdaptiveCoder:
-    def __init__(self, period: int):
-        assert period > 0
+    def __init__(self, p: int):
+        assert 10 <= p <= 20
+        self._p: int = p
 
-        self._bytes_per_symbol: int = 1
-        self._bits_per_symbol: int = self._bytes_per_symbol * BITS_PER_BYTE
+        # number of symbols between each tree update
+        # range[2^10, 2^20] = range[1K symbols, 1M symbols]
+        self._period: int = 2 ** p
 
-        self._period: int = period  # number of symbols between each tree update
         self._total_symbols: int = 0
+        self._bits_written: int = 0
+
+        self._bytes_per_symbol: int
+        self._bits_per_symbol: int
 
         self._symbol_distributions: Dict[str, int] = {
-            chr(order): 1
+            extended_chr(order, self._bits_per_symbol): 1
             for order in range(2 ** self._bits_per_symbol)
         }
         self._tree: HuffmanTree
         self._update_cnt = 0
         self._update_tree()
-    
+
+    @property
+    def code_len_per_symbol(self) -> float:
+        return self._bits_written / self._total_symbols
+
+    @property
+    def code_len_per_byte(self) -> float:
+        return self.code_len_per_symbol / self._bytes_per_symbol
+
     def _update_tree(self):
         self._tree = HuffmanTree(
             symbol_distribution=self._symbol_distributions,
