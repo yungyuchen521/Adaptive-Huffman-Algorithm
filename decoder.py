@@ -1,4 +1,5 @@
 from typing import Optional, BinaryIO
+import sys
  
 from base_coder import BaseStaticCoder
 from utils import (
@@ -61,20 +62,35 @@ class Decoder(BaseStaticCoder):
         if self._verbose > 0:
             self._logger.warning(f"{self.__class__.__name__} parsing header...")
 
-        # {bits per symbol}{dummy symbol bytes}{code length table}{dummy codeword bits}
+        # {bits per symbol}{dummy symbol bytes}{size of codelen_dict}{code length dict}{dummy codeword bits}
+        # {code length dict} = {symbol}{code length}{symbol}{code length}{symbol}{code length}...
 
         stream = BitInStream(file_obj, mode=IO_MODE_BYTE)
 
         self._bits_per_symbol = ord(stream.read(1))
         self._bytes_per_symbol = self._bits_per_symbol // BITS_PER_BYTE
-        
         self._dummy_symbol_bytes = ord(stream.read(1))
+        code_len_dict_size = extended_ord(stream.read(self._bytes_per_symbol))
 
-        code_len_table = [
-            extended_ord(stream.read(self._bytes_per_symbol))
-            for _ in range(2 ** self._bits_per_symbol)
-        ]
+        code_len_dict = {}
+        for _ in range(code_len_dict_size):
+            symbol = stream.read(self._bytes_per_symbol)
+            codelen = extended_ord(stream.read(self._bytes_per_symbol))
+
+            code_len_dict[symbol] = codelen
 
         self._dummy_codeword_bits = ord(stream.read(1))
 
-        self._tree = HuffmanTree(code_len_table=code_len_table)
+        self._tree = HuffmanTree(code_len_dict=code_len_dict)
+
+
+if __name__ == "__main__":
+    kwargs = dict([arg.split("=") for arg in sys.argv[1:]])
+    
+    verbose = int(kwargs.get("v", 0))
+    decoder = Decoder(verbose=verbose)
+
+    src = kwargs["in"]
+    decomp = kwargs.get("out", f"{src}.{DECOMP_FILE_EXTENSION}")
+
+    decoder.decode(src, decomp)

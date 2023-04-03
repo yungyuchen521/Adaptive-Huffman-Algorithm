@@ -1,8 +1,5 @@
 from typing import Dict, List, Optional
 import heapq
-from math import log2
-
-from utils import extended_chr
 
 
 class BaseNode:
@@ -115,16 +112,8 @@ class HuffmanTree:
                 for symbol, code in self._code_dict.items():
                     if len(code) != self._code_len_dict[symbol]:
                         print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
-        elif "code_len_table" in kwargs:
-            code_len_table = kwargs["code_len_table"]
-            bits_per_symbol = int(log2(len(code_len_table)))
-            assert 2 ** bits_per_symbol == len(code_len_table)
-
-            self._code_len_dict = {
-                extended_chr(order, bits_per_symbol): code_len
-                for order, code_len in enumerate(code_len_table)
-                if code_len > 0
-            }
+        elif "code_len_dict" in kwargs:
+            self._code_len_dict = kwargs["code_len_dict"]
             self._build_by_code_len()
             self._set_code_dict(self._root, "")  # for debug purpose only
         else:

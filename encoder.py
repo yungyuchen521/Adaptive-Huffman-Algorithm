@@ -1,6 +1,8 @@
 from typing import Dict, Optional
 from math import ceil, log2
 from pathlib import Path
+import os
+import sys
 
 from utils import (
     BITS_PER_BYTE,
@@ -8,6 +10,7 @@ from utils import (
     MAX_BYTE_PER_SYMBOL,
     COMP_FILE_EXTENSION,
     extended_chr,
+    extended_ord,
 )
 from base_coder import BaseStaticCoder
 from bit_io_stream import (
@@ -59,30 +62,30 @@ class Encoder(BaseStaticCoder):
     def get_compression_ratio(self, consider_header: bool=True) -> float:
         comp_size = ceil(self._bits_written / BITS_PER_BYTE)
         if consider_header:
-            comp_size += 3 + (2**self._bits_per_symbol) * self._bytes_per_symbol
+            header_size = 0
+            header_size += 2 # bits per symbol, dummy symbol bytes
+            header_size += self._bytes_per_symbol # size of codelen_dict
+            header_size += len(self.code_dict) * 2 * self._bytes_per_symbol # code length dict
+            header_size += 1 # dummy codeword bits
+            comp_size += header_size
 
         return 1 - comp_size / self.total_bytes
 
-    def export_statistics(self, dir_path: str):
-        while Path(dir_path).exists():
-            dir_path += "_"
-
-        path = Path(dir_path)
-
-        with open(path/"stats.txt", "w") as f:
+    def export_statistics(self, dir_path: Path):
+        with open(dir_path/"stats.txt", "w") as f:
             f.write(f"bytes per symbol: {self._bytes_per_symbol}\n")
             f.write(f"total symbols: {self._total_symbols}\n")
 
-        with open(path/"distributions.txt", "w") as f:
-            for cnt in self._symbol_distributions:
-                f.write(f"{cnt}\n")
+        with open(dir_path/"distributions.txt", "w") as f:
+            for symbol, cnt in self._symbol_distributions.items():
+                f.write(f"{extended_ord(symbol)}: {cnt}\n")
 
-        with open(path/"code.txt", "w") as f:
+        with open(dir_path/"code.txt", "w") as f:
             for symbol, code in self.code_dict.items():
-                f.write(f"{symbol}: {code}\n")
+                f.write(f"{extended_ord(symbol)}: {code}\n")
 
-        with open(path/"performance.txt", "w") as f:
-            f.write(f"entropy: {self.entropy}")
+        with open(dir_path/"performance.txt", "w") as f:
+            f.write(f"entropy: {self.entropy}\n")
             f.write(f"average codeword length: {self.codelen_per_symbol}\n")
             f.write(f"compression ratio (including header): {self.get_compression_ratio(consider_header=True)}\n")
             f.write(f"compression ratio (without header): {self.get_compression_ratio(consider_header=False)}\n")
@@ -120,7 +123,7 @@ class Encoder(BaseStaticCoder):
         for symbol, cnt in self._symbol_distributions.items():
             total_codelen += cnt * len(self.code_dict[symbol])
         
-        return total_codelen / len(self._symbol_distributions)
+        return total_codelen / self._total_symbols
 
     @property
     def codelen_per_byte(self) -> float:
@@ -159,7 +162,8 @@ class Encoder(BaseStaticCoder):
         if self._verbose > 0:
             self._logger.warning(f"{self.__class__.__name__} writing compression header...")
 
-        # {bits per symbol}{dummy symbol bytes}{code length table}{dummy codeword bits}
+        # {bits per symbol}{dummy symbol bytes}{size of codelen_dict}{code length dict}{dummy codeword bits}
+        # {code length dict} = {symbol}{code length}{symbol}{code length}{symbol}{code length}...
         code_dict = self._tree.code_dict
 
         with open(comp_file_path, "wb", BUFFER_SIZE) as f:
@@ -167,16 +171,16 @@ class Encoder(BaseStaticCoder):
 
             stream.write(chr(self._bits_per_symbol))
             stream.write(chr(self._dummy_symbol_bytes))
+            stream.write(extended_chr(len(code_dict), self._bits_per_symbol))
 
             trailing_bits = 0  # bits insufficient to make a byte
-            for order in range(2 ** self._bits_per_symbol):
-                symbol = extended_chr(order, self._bits_per_symbol)
+            for symbol, code in code_dict.items():
+                code_len = len(code)
+                
+                trailing_bits += code_len * self._symbol_distributions[symbol]
+                trailing_bits %= BITS_PER_BYTE
 
-                code_len = len(code_dict.get(symbol, ""))
-                if code_len > 0:
-                    trailing_bits += code_len * self._symbol_distributions[symbol]
-                    trailing_bits %= BITS_PER_BYTE
-
+                stream.write(symbol)
                 stream.write(extended_chr(code_len, self._bits_per_symbol))
 
             self._dummy_codeword_bits = (BITS_PER_BYTE - trailing_bits) % BITS_PER_BYTE
@@ -208,3 +212,26 @@ class Encoder(BaseStaticCoder):
             trailing_bits = ostream.flush()
             dummy_bits = 0 if trailing_bits == 0 else BITS_PER_BYTE - trailing_bits
             assert self._dummy_codeword_bits == dummy_bits
+
+
+if __name__ == "__main__":
+    kwargs = dict([arg.split("=") for arg in sys.argv[1:]])
+
+    export_path = kwargs.get("export", None)
+    if export_path:
+        export_path = Path(export_path)
+        if export_path.exists():
+            raise AssertionError("The folder already exists. Files insider may be overwritten!")
+        else:
+            os.mkdir(export_path)
+
+    bytes_per_symbol = int(kwargs.get("b", 1))
+    verbose = int(kwargs.get("v", 0))
+    src = kwargs["in"]
+    comp = kwargs.get("out", f"{src}.{COMP_FILE_EXTENSION}")
+
+    encoder = Encoder(bytes_per_symbol=bytes_per_symbol, verbose=verbose)
+    encoder.encode(src, comp)
+
+    if export_path:
+        encoder.export_statistics(export_path)
