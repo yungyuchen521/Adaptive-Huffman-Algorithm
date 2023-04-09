@@ -55,10 +55,6 @@ class Encoder(BaseStaticCoder):
         self._write_header(comp_file_path)
         self._write_content(src_file_path, comp_file_path)
 
-        if self._verbose > 0:
-            comp_ratio = self.get_compression_ratio(False)
-            self._logger.warning(f"compression ratio: {comp_ratio}")
-
     def get_compression_ratio(self, consider_header: bool=True) -> float:
         comp_size = ceil(self._bits_written / BITS_PER_BYTE)
         if consider_header:
@@ -136,9 +132,6 @@ class Encoder(BaseStaticCoder):
         self._bits_written = 0
 
     def _generate_symbol_dist(self, src_file_path: str):
-        if self._verbose > 0:
-            self._logger.warning(f"{self.__class__.__name__} calculating symbol distribution...")
-
         with open(src_file_path, "rb", BUFFER_SIZE) as f:
             stream = BitInStream(f, IO_MODE_BYTE)
 
@@ -159,9 +152,6 @@ class Encoder(BaseStaticCoder):
                 self._total_symbols += 1
 
     def _write_header(self, comp_file_path: str):
-        if self._verbose > 0:
-            self._logger.warning(f"{self.__class__.__name__} writing compression header...")
-
         # {bits per symbol}{dummy symbol bytes}{size of codelen_dict}{code length dict}{dummy codeword bits}
         # {code length dict} = {symbol}{code length}{symbol}{code length}{symbol}{code length}...
         code_dict = self._tree.code_dict
@@ -173,7 +163,7 @@ class Encoder(BaseStaticCoder):
             stream.write(chr(self._dummy_symbol_bytes))
 
             if len(code_dict) == 2 ** self._bits_per_symbol:
-                # 0 is never used, used it to represent 2 ** self._bits_per_symbol
+                # 0 is never used, use it to represent 2 ** self._bits_per_symbol
                 stream.write(extended_chr(0, self._bits_per_symbol))
             else:
                 stream.write(extended_chr(len(code_dict), self._bits_per_symbol))
@@ -188,7 +178,7 @@ class Encoder(BaseStaticCoder):
                 stream.write(symbol)
 
                 if code_len == 2 ** self._bits_per_symbol:
-                    # 0 is never used, used it to represent 2 ** self._bits_per_symbol
+                    # 0 is never used, use it to represent 2 ** self._bits_per_symbol
                     stream.write(extended_chr(0, self._bits_per_symbol))
                 else:
                     stream.write(extended_chr(code_len, self._bits_per_symbol))
@@ -197,9 +187,6 @@ class Encoder(BaseStaticCoder):
             stream.write(chr(self._dummy_codeword_bits))
 
     def _write_content(self, src_file_path: str, comp_file_path: str):
-        if self._verbose > 0:
-            self._logger.warning(f"{self.__class__.__name__} compressing file content")
-
         code_dict = self._tree.code_dict
 
         with open(src_file_path, "rb", BUFFER_SIZE) as src, open(comp_file_path, "ab", BUFFER_SIZE) as comp:
@@ -231,7 +218,7 @@ if __name__ == "__main__":
     if export_path:
         export_path = Path(export_path)
         if export_path.exists():
-            raise AssertionError("The folder already exists. Files insider may be overwritten!")
+            raise AssertionError("The folder already exists. Files inside may be overwritten!")
         else:
             os.mkdir(export_path)
 

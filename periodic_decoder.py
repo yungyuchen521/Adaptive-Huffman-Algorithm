@@ -13,10 +13,10 @@ from bit_io_stream import (
     IO_MODE_BYTE,
     IO_MODE_BIT,
 )
-from base_coder import BaseAdaptiveCoder
+from base_coder import BasePeriodicCoder
 
 
-class AdaptiveDecoder(BaseAdaptiveCoder):
+class AdaptiveDecoder(BasePeriodicCoder):
     BITS_PER_READ = 256  # more convenient to strip off dummy bits & dummy bytes
 
     def __init__(self):

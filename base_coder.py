@@ -54,7 +54,7 @@ class BaseStaticCoder:
         return self._dummy_codeword_bits
 
 
-class BaseAdaptiveCoder:
+class BasePeriodicCoder:
     def __init__(self, p: int):
         assert 10 <= p <= 20
         self._p: int = p

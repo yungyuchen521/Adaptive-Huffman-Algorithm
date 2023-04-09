@@ -14,10 +14,10 @@ from bit_io_stream import (
     IO_MODE_BYTE,
     IO_MODE_BIT,
 )
-from base_coder import BaseAdaptiveCoder
+from base_coder import BasePeriodicCoder
 
 
-class AdaptiveEncoder(BaseAdaptiveCoder):
+class AdaptiveEncoder(BasePeriodicCoder):
     def __init__(self, p: int, bytes_per_symbol: int):
         self._p = p
         self._bytes_per_symbol = bytes_per_symbol

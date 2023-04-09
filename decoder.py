@@ -31,9 +31,6 @@ class Decoder(BaseStaticCoder):
         with open(src_file_path, "rb", BUFFER_SIZE) as src, open(decomp_file_path, "wb", BUFFER_SIZE) as decomp:
             self._parse_header(src)
 
-            if self._verbose > 0:
-                self._logger.warning(f"{self.__class__.__name__} decompressing...")
-
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
 
@@ -58,9 +55,6 @@ class Decoder(BaseStaticCoder):
         self._trunc(decomp_file_path)
 
     def _parse_header(self, file_obj: BinaryIO):
-        if self._verbose > 0:
-            self._logger.warning(f"{self.__class__.__name__} parsing header...")
-
         # {bits per symbol}{dummy symbol bytes}{size of codelen_dict}{code length dict}{dummy codeword bits}
         # {code length dict} = {symbol}{code length}{symbol}{code length}{symbol}{code length}...
 
@@ -79,7 +73,7 @@ class Decoder(BaseStaticCoder):
             symbol = stream.read(self._bytes_per_symbol)
             code_len = extended_ord(stream.read(self._bytes_per_symbol))
 
-            # 0 irepresents 2 ** self._bits_per_symbol
+            # 0 represents 2 ** self._bits_per_symbol
             code_len_dict[symbol] = (2 ** self._bits_per_symbol if code_len == 0 else code_len)
         
         self._dummy_codeword_bits = ord(stream.read(1))
