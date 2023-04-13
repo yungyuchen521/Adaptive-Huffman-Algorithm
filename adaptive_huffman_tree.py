@@ -1,162 +1,73 @@
-from typing import Dict, Optional, Set
+from typing import Dict, List, Optional, Tuple
+from math import log2
 
 from utils import BITS_PER_BYTE
+from adaptive_nodes import BaseNode, Node, NYT
 
-
-class BaseNode:
-    def __init__(self, id: int, weight: int, parent=None):
-        self._id: int = id
-        self._weight: int = weight
-        self._parent: BaseNode = parent
-        self._left: BaseNode = None
-        self._right: BaseNode = None
-
-    def __str__(self):
-        return f"id={self._id}, w={self._weight}, pid={self._parent.id if self._parent else 'NA'}"
-
-    @property
-    def id(self):
-        return self._id
-
-    @property
-    def weight(self):
-        return self._weight
-
-    @property
-    def parent(self):
-        return self._parent
-    
-    @property
-    def left(self):
-        return self._left
-
-    @property
-    def right(self):
-        return self._right
-    
-    def set_left(self, node):
-        assert isinstance(node, BaseNode)
-        self._left = node
-    
-    def set_right(self, node):
-        assert isinstance(node, BaseNode)
-        self._right = node
-
-    @property
-    def order(self):
-        raise NotImplementedError
-
-    @property
-    def is_symbol(self):
-        raise NotImplementedError
-
-class Node(BaseNode):
-    def __init__(self, id: int, parent: BaseNode, weight: int, order: int=-1):
-        super().__init__(id=id, weight=weight, parent=parent)
-        self._order = order
-
-    def __str__(self):
-        return f"{super().__str__()}, order={self._order}"
-
-    @property
-    def order(self):
-        return self._order
-
-    @property
-    def is_symbol(self) -> bool:
-        return self._order >= 0
-
-class NYT(BaseNode):
-    def __init__(self, bits_per_symbol: int):
-        super().__init__(id=0, weight=0, parent=None)
-
-        self._bits_per_symbol = bits_per_symbol
-        self._nyt_set: Set[int] = set(range(2**bits_per_symbol)) # use the complement to reduce size?
-
-        self._bits_buffer: str = ""
-
-    def __str__(self):
-        return f"NYT: {super().__str__()}"
-
-    def set_parent(self, parent: Node):
-        self._parent = parent
-        self._id = parent.id + 2
-
-    def encode(self, order: int) -> str:
-        assert order in self._nyt_set
-        self._nyt_set.remove(order)
-        return self._order_to_bin_str(order)
-
-    def decode(self, bit: str) -> Optional[str]:
-        assert bit == "0" or bit == "1"
-
-        self._bits_buffer += bit
-        return (
-            self._flush_buffer()
-            if self._buffer_full()
-            else None
-        )
-
-    def _order_to_bin_str(self, order: int) -> str:
-        bin_str = bin(order).split("b")[-1]
-        return (self._bits_per_symbol - len(bin_str)) * "0" + bin_str
-
-    def _buffer_full(self) -> bool:
-        assert len(self._bits_buffer) <= self._bits_per_symbol
-        return len(self._bits_buffer) == self._bits_per_symbol
-
-    def _flush_buffer(self) -> str:
-        assert len(self._bits_buffer) == self._bits_per_symbol
-
-        order = 0
-
-        for bit in self._bits_buffer:
-            assert bit in "01"
-
-            order <<= 1
-            if bit == "1":
-                order += 1
-
-        self._bits_buffer = ""
-        self._nyt_set.remove(order)
-
-        return chr(order)
 
 class AdaptiveHuffmanTree:
     def __init__(self, bytes_per_symbol: int):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
 
+        self._symbol_cnt: int = 0
+
         self._nyt: NYT = NYT(self._bits_per_symbol)
         self._root: BaseNode = self._nyt
 
         # for encoder
-        self._ord_node_dict: Dict[int, BaseNode]  = {}
+        self._ord_node_dict: Dict[int, Node]  = {}
 
         # for decoder
         self._cur: BaseNode = self._root
     
+    @property
+    def entropy(self) -> float:
+        ent = 0
+        stack = [self._root]
+
+        while stack:
+            node = stack[-1]
+            if isinstance(node, Node) and node.is_symbol:
+                p = node.weight / self._symbol_cnt
+                ent -= p * log2(p)
+
+            if node.left:
+                stack.append(node.left)
+                stack.append(node.right)
+
+        return ent
+
     def __str__(self):
-        queue = [self._root]
+        # (depth, Node)
+        queue: List[Tuple[int, BaseNode]] = [(0, self._root)]
         
         s = ""
+        depth = 0
         while queue:
-            n = queue.pop(0)
-            s += f"[{str(n)}]"
+            d, n = queue.pop(0)
+
+            if d > depth:
+                assert depth+1 == d
+                s += "\n"
+                depth = d
+            
+            s += f"[{str(n)}] "
 
             if n.left:
-                queue.append(n.left)
-                queue.append(n.right)
+                queue.append((d+1, n.left))
+                queue.append((d+1, n.right))
 
         return s
 
     def encode(self, symbol: str) -> str:
+        self._symbol_cnt += 1
         order = ord(symbol)
         node = self._ord_node_dict.get(order)
 
         if node is None:
             code = self._encode_new_symbol(order)
-            self._update(self._nyt)
+            # tree updated in create_new_node
         else:
             code = self._encode_existing_symbol(node)
             self._update(node)
@@ -164,7 +75,7 @@ class AdaptiveHuffmanTree:
         return code
 
     def decode(self, bit: str) -> Optional[str]:
-        # every time a non-null symbol is returned
+        # whenever a non-null symbol returned
         # self._cur should be set to self._root
 
         assert bit == "0" or bit == "1"
@@ -174,6 +85,7 @@ class AdaptiveHuffmanTree:
 
             if symbol is not None:
                 self._create_new_node(ord(symbol))
+                # tree updated in create_new_node
                 self._cur = self._root
 
             return symbol
@@ -184,12 +96,13 @@ class AdaptiveHuffmanTree:
             else self._cur.right
         )
 
-        if isinstance(self._cur, NYT) or not self._cur.is_symbol:
-            return None
-        else:
+        if isinstance(self._cur, Node) and self._cur.is_symbol:
             symbol = chr(self._cur.order)
+            self._update(self._cur)
             self._cur = self._root
             return symbol
+        else:
+            return None
 
     def _encode_new_symbol(self, order: int) -> str:
         code = self._encode_existing_symbol(self._nyt) + self._nyt.encode(order)
@@ -230,9 +143,60 @@ class AdaptiveHuffmanTree:
         )
         self._ord_node_dict[order] = new_node
 
-        new_internal.set_left(self._nyt) # update weight?
-        new_internal.set_right(new_node) # update weight?
+        new_internal.set_left(self._nyt)
+        new_internal.set_right(new_node)
         self._nyt.set_parent(new_internal)
 
-    def _update(self, node: BaseNode):
-        self._cur = self._root
+        if new_internal != self._root:
+            self._update(new_internal.parent)
+
+    def _update(self, node: Node):
+        assert isinstance(node, Node)
+
+        block_rep = self._get_block_rep(node.weight)
+        if (block_rep != node) and (block_rep != node.parent):
+            self._swap(node, block_rep)
+
+        node.increment_weight()
+        if node.parent is not None:
+            self._update(node.parent)
+
+    def _get_block_rep(self, weight: int) -> Node:
+        # get the top-right most node with specific weight
+        queue = [self._root]
+
+        while queue:
+            node = queue.pop(0)
+
+            if node.weight == weight:
+                return node
+
+            if node.left:
+                queue.append(node.right)
+                queue.append(node.left)
+
+        raise AssertionError
+
+    def _swap(self, n1: Node, n2: Node):
+        # swap the entire subtrees
+        p1 = n1.parent
+        n1_is_left = (p1.left == n1)
+
+        p2 = n2.parent
+        n2_is_left = (p2.left == n2)
+
+        n2.set_parent(p1)
+        if n1_is_left:
+            p1.set_left(n2)
+        else:
+            p1.set_right(n2)
+
+        n1.set_parent(p2)
+        if n2_is_left:
+            p2.set_left(n1)
+        else:
+            p2.set_right(n1)
+
+        tmp = n1.id
+        n1.set_id(n2.id)
+        n2.set_id(tmp)

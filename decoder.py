@@ -24,7 +24,7 @@ class Decoder(BaseStaticCoder):
     def __init__(self, verbose: int=0):
         super().__init__(verbose)
 
-    def decode(self, src_file_path, decomp_file_path: Optional[str]=None):
+    def decode(self, src_file_path: str, decomp_file_path: Optional[str]=None):
         if decomp_file_path is None:
             decomp_file_path = f"{src_file_path}.{DECOMP_FILE_EXTENSION}"
 
