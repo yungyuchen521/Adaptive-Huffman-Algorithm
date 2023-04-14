@@ -4,6 +4,7 @@ MAX_BYTE_PER_SYMBOL = 8
 
 COMP_FILE_EXTENSION = "comp"
 DECOMP_FILE_EXTENSION = "decomp"
+PROGRESS_FILE_NME = "progress.txt"
 
 
 def extended_ord(string: str) -> int:

@@ -2,7 +2,7 @@ from typing import BinaryIO, Optional
 import sys
 import io
 
-from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE
+from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NME
 from bit_io_stream import (
     BitInStream,
     BitOutStream,
@@ -14,11 +14,15 @@ from adaptive_huffman_tree import AdaptiveHuffmanTree
 
 class AdaptiveDecoder:
     BITS_PER_READ = 256  # more convenient to strip off dummy bits
+    ALERT_PERIOD = 10**6
 
-    def __init__(self):
+    def __init__(self, verbose: int=0):
         self._bits_per_symbol: int
         self._bytes_per_symbol: int
 
+        self._verbose = verbose
+
+        self._symbol_cnt: int = 0
         self._dummy_codeword_bits: int
         self._dummy_symbol_bytes: int
 
@@ -45,8 +49,16 @@ class AdaptiveDecoder:
                     symbol = tree.decode(bit)
                     if symbol:
                         ostream.write(symbol)
+                        self._symbol_cnt += 1
+
+                        self._export_progress()
 
         self._trunc(decomp_file_path)
+
+    def _export_progress(self):
+        if self._verbose > 0 and self._symbol_cnt * self._bytes_per_symbol % self.ALERT_PERIOD == 0:
+            with open(PROGRESS_FILE_NME, "w") as f:
+                f.write(f"{self._symbol_cnt * self._bytes_per_symbol // self.ALERT_PERIOD} Mb compressed\n")
 
     def _parse_header(self, file_obj: BinaryIO):
         # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}
@@ -75,9 +87,9 @@ class AdaptiveDecoder:
 if __name__ == "__main__":
     kwargs = dict([arg.split("=") for arg in sys.argv[1:]])
     
-    decoder = AdaptiveDecoder()
+    verbose = int(kwargs.get("b", 0))
+    decoder = AdaptiveDecoder(verbose)
+
     src = kwargs["in"]
     decomp = kwargs.get("out", f"{src}.{DECOMP_FILE_EXTENSION}")
-
-    decomp = None
     decoder.decode(src, decomp)
