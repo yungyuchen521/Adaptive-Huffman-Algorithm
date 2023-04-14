@@ -1,5 +1,7 @@
 from typing import Optional, Set
 
+from utils import extended_chr
+
 
 class BaseNode:
     def __init__(self, id: int, weight: int, parent=None):
@@ -55,7 +57,7 @@ class Node(BaseNode):
 
     def __str__(self):
         if self.is_symbol:
-            return f"{super().__str__()}, order={self._order}, chr={chr(self._order)}"
+            return f"{super().__str__()}, order={self._order}"
         else:
             return f"internal: {super().__str__()}"
 
@@ -82,7 +84,7 @@ class NYT(BaseNode):
         super().__init__(id=0, weight=0, parent=None)
 
         self._bits_per_symbol = bits_per_symbol
-        self._nyt_set: Set[int] = set(range(2**bits_per_symbol)) # use the complement to reduce size?
+        self._transmitted_set: Set[int] = set()
 
         self._bits_buffer: str = ""
 
@@ -95,8 +97,8 @@ class NYT(BaseNode):
         self._id = parent.id + 2
 
     def encode(self, order: int) -> str:
-        assert order in self._nyt_set
-        self._nyt_set.remove(order)
+        assert order not in self._transmitted_set
+        self._transmitted_set.add(order)
         return self._order_to_bin_str(order)
 
     def decode(self, bit: str) -> Optional[str]:
@@ -130,6 +132,6 @@ class NYT(BaseNode):
                 order += 1
 
         self._bits_buffer = ""
-        self._nyt_set.remove(order)
+        self._transmitted_set.add(order)
 
-        return chr(order)
+        return extended_chr(order, self._bits_per_symbol)

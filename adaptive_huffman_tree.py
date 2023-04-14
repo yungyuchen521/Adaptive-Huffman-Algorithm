@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 from math import log2
 
-from utils import BITS_PER_BYTE
+from utils import BITS_PER_BYTE, extended_chr, extended_ord
 from adaptive_nodes import BaseNode, Node, NYT
 
 
@@ -62,7 +62,7 @@ class AdaptiveHuffmanTree:
 
     def encode(self, symbol: str) -> str:
         self._symbol_cnt += 1
-        order = ord(symbol)
+        order = extended_ord(symbol)
         node = self._ord_node_dict.get(order)
 
         if node is None:
@@ -84,7 +84,7 @@ class AdaptiveHuffmanTree:
             symbol = self._nyt.decode(bit)
 
             if symbol is not None:
-                self._create_new_node(ord(symbol))
+                self._create_new_node(extended_ord(symbol))
                 # tree updated in create_new_node
                 self._cur = self._root
 
@@ -97,7 +97,7 @@ class AdaptiveHuffmanTree:
         )
 
         if isinstance(self._cur, Node) and self._cur.is_symbol:
-            symbol = chr(self._cur.order)
+            symbol = extended_chr(self._cur.order, self._bits_per_symbol)
             self._update(self._cur)
             self._cur = self._root
             return symbol

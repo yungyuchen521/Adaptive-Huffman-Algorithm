@@ -1,5 +1,6 @@
 from typing import BinaryIO, Optional
 import sys
+import io
 
 from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE
 from bit_io_stream import (
@@ -12,12 +13,14 @@ from adaptive_huffman_tree import AdaptiveHuffmanTree
 
 
 class AdaptiveDecoder:
-    BITS_PER_READ = 256  # more convenient to strip off dummy bits & dummy bytes
+    BITS_PER_READ = 256  # more convenient to strip off dummy bits
 
     def __init__(self):
         self._bits_per_symbol: int
         self._bytes_per_symbol: int
+
         self._dummy_codeword_bits: int
+        self._dummy_symbol_bytes: int
 
     def decode(self, src_file_path: str, decomp_file_path: Optional[str]=None):
         if decomp_file_path is None:
@@ -43,19 +46,33 @@ class AdaptiveDecoder:
                     if symbol:
                         ostream.write(symbol)
 
+        self._trunc(decomp_file_path)
+
     def _parse_header(self, file_obj: BinaryIO):
-        # {bits per symbol}{dummy codeword bits}
+        # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}
 
         stream = BitInStream(file_obj, mode=IO_MODE_BYTE)
         self._bits_per_symbol = ord(stream.read(1))
-        self._dummy_codeword_bits = ord(stream.read(1))
-
-        print(self._bits_per_symbol)
         assert self._bits_per_symbol > 0 and self._bits_per_symbol % 8 == 0
         self._bytes_per_symbol = self._bits_per_symbol // BITS_PER_BYTE
 
+        self._dummy_codeword_bits = ord(stream.read(1))
+        assert 0 <= self._dummy_codeword_bits < BITS_PER_BYTE
 
-if __name__ == "__main__" or True:
+        self._dummy_symbol_bytes = ord(stream.read(1))
+        assert 0 <= self._dummy_symbol_bytes < self._bytes_per_symbol
+
+    def _trunc(self, decomp_file_path: str):
+        # strip off dummy symbol bytes
+        if self._dummy_symbol_bytes == 0:
+            return
+
+        with open(decomp_file_path, "r+b") as f:
+            f.seek(-self._dummy_symbol_bytes, io.SEEK_END)
+            f.truncate()
+
+
+if __name__ == "__main__":
     kwargs = dict([arg.split("=") for arg in sys.argv[1:]])
     
     decoder = AdaptiveDecoder()
