@@ -1,8 +1,9 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from math import log2
 
 from utils import BITS_PER_BYTE, extended_chr, extended_ord
 from adaptive_nodes import BaseNode, Node, NYT
+from block import BlockManager
 
 
 class AdaptiveHuffmanTree:
@@ -14,6 +15,10 @@ class AdaptiveHuffmanTree:
 
         self._nyt: NYT = NYT(self._bits_per_symbol)
         self._root: BaseNode = self._nyt
+
+        self._block_manager: BlockManager = BlockManager()
+
+        self._node_id: int = 0  # assign unique id to each node (for debug purpose)
 
         # for encoder
         self._ord_node_dict: Dict[int, Node]  = {}
@@ -40,23 +45,23 @@ class AdaptiveHuffmanTree:
 
     def __str__(self):
         # (depth, Node)
-        queue: List[Tuple[int, BaseNode]] = [(0, self._root)]
+        queue: List[BaseNode] = [self._root]
         
         s = ""
         depth = 0
         while queue:
-            d, n = queue.pop(0)
+            n = queue.pop(0)
 
-            if d > depth:
-                assert depth+1 == d
+            if n.depth > depth:
+                assert n.depth == depth+1
                 s += "\n"
-                depth = d
+                depth = n.depth
             
             s += f"[{str(n)}] "
 
             if n.left:
-                queue.append((d+1, n.left))
-                queue.append((d+1, n.right))
+                queue.append(n.left)
+                queue.append(n.right)
 
         return s
 
@@ -72,6 +77,7 @@ class AdaptiveHuffmanTree:
             code = self._encode_existing_symbol(node)
             self._update(node)
 
+        self._block_manager.update()
         return code
 
     def decode(self, bit: str) -> Optional[str]:
@@ -87,6 +93,7 @@ class AdaptiveHuffmanTree:
                 self._create_new_node(extended_ord(symbol))
                 # tree updated in create_new_node
                 self._cur = self._root
+                self._block_manager.update()
 
             return symbol
 
@@ -100,6 +107,7 @@ class AdaptiveHuffmanTree:
             symbol = extended_chr(self._cur.order, self._bits_per_symbol)
             self._update(self._cur)
             self._cur = self._root
+            self._block_manager.update()
             return symbol
         else:
             return None
@@ -120,13 +128,14 @@ class AdaptiveHuffmanTree:
             else:
                 raise AssertionError(str(node))
 
+            assert node.parent.depth + 1 == node.depth
             node = node.parent
 
         return code
 
     def _create_new_node(self, order: int):
         new_internal = Node(
-            id=self._nyt.id,
+            id=self._get_next_node_id(),
             parent=self._nyt.parent,
             weight=1,
         )
@@ -136,7 +145,7 @@ class AdaptiveHuffmanTree:
             new_internal.parent.set_left(new_internal)
 
         new_node = Node(
-            id=self._nyt.id+1,
+            id=self._get_next_node_id(),
             parent=new_internal,
             weight=1,
             order=order,
@@ -147,35 +156,27 @@ class AdaptiveHuffmanTree:
         new_internal.set_right(new_node)
         self._nyt.set_parent(new_internal)
 
+        self._block_manager.insert(new_internal)
+        self._block_manager.insert(new_node)
+
         if new_internal != self._root:
             self._update(new_internal.parent)
+
+    def _get_next_node_id(self) -> int:
+        self._node_id += 1
+        return self._node_id
 
     def _update(self, node: Node):
         assert isinstance(node, Node)
 
-        block_rep = self._get_block_rep(node.weight)
+        block_rep = self._block_manager.get_rep(node)
         if (block_rep != node) and (block_rep != node.parent):
             self._swap(node, block_rep)
 
-        node.increment_weight()
+        self._block_manager.increment_node_weight(node)
+
         if node.parent is not None:
             self._update(node.parent)
-
-    def _get_block_rep(self, weight: int) -> Node:
-        # get the top-right most node with specific weight
-        queue = [self._root]
-
-        while queue:
-            node = queue.pop(0)
-
-            if node.weight == weight:
-                return node
-
-            if node.left:
-                queue.append(node.right)
-                queue.append(node.left)
-
-        raise AssertionError
 
     def _swap(self, n1: Node, n2: Node):
         # swap the entire subtrees
@@ -197,6 +198,16 @@ class AdaptiveHuffmanTree:
         else:
             p2.set_right(n1)
 
-        tmp = n1.id
-        n1.set_id(n2.id)
-        n2.set_id(tmp)
+        self._update_depth(n1)
+        self._update_depth(n2)
+
+    def _update_depth(self, node: Node):
+        if not isinstance(node, Node):
+            return
+
+        node.update_depth()
+        self._block_manager.add_update(node.weight)
+
+        if node.left:
+            self._update_depth(node.left)
+            self._update_depth(node.right)

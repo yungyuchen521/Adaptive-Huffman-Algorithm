@@ -11,7 +11,10 @@ class BaseNode:
         self._left: BaseNode = None
         self._right: BaseNode = None
 
+        self._depth: int = 0 if parent is None else parent._depth + 1
+
     def __str__(self):
+        # {parent id}->{id}, {weight}
         return f"|{self._parent.id if self._parent else 'NA'}|->|{self._id}|, w={self._weight}"
 
     @property
@@ -25,7 +28,11 @@ class BaseNode:
     @property
     def parent(self):
         return self._parent
-    
+
+    @property
+    def depth(self):
+        return self._depth
+
     @property
     def left(self):
         return self._left
@@ -34,6 +41,9 @@ class BaseNode:
     def right(self):
         return self._right
     
+    def update_depth(self):
+        self._depth = 0 if self._parent is None else self.parent.depth + 1
+
     def set_left(self, node):
         assert isinstance(node, BaseNode)
         self._left = node
@@ -61,6 +71,9 @@ class Node(BaseNode):
         else:
             return f"internal: {super().__str__()}"
 
+    def __lt__(self, node):
+        return self._depth > node.depth
+
     @property
     def order(self):
         return self._order
@@ -72,12 +85,10 @@ class Node(BaseNode):
     def set_parent(self, parent):
         assert isinstance(parent, Node)
         self._parent = parent
+        self._depth = parent.depth + 1
 
     def increment_weight(self):
         self._weight += 1
-
-    def set_id(self, id: int):
-        self._id = id
 
 class NYT(BaseNode):
     def __init__(self, bits_per_symbol: int):
@@ -94,7 +105,6 @@ class NYT(BaseNode):
     def set_parent(self, parent: Node):
         assert isinstance(parent, Node)
         self._parent = parent
-        self._id = parent.id + 2
 
     def encode(self, order: int) -> str:
         assert order not in self._transmitted_set
