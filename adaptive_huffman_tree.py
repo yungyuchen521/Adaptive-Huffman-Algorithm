@@ -1,5 +1,4 @@
 from typing import Dict, List, Optional
-from math import log2
 
 from utils import BITS_PER_BYTE, BYTES_PER_MB, extended_chr, extended_ord
 from adaptive_nodes import BaseNode, Node, NYT
@@ -10,16 +9,16 @@ ENCODE_MODE = "ENCODE"
 DECODE_MODE = "DECODE"
 
 class AdaptiveHuffmanTree:
-    def __init__(self, bytes_per_symbol: int, mode: str, shrink_period: int = 0):
+    def __init__(self, bytes_per_symbol: int, mode: str, shrink_period: int = 0, shrink_factor: int = 2):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
 
         assert mode in (ENCODE_MODE, DECODE_MODE)
         self._mode = mode
 
-        assert shrink_period >= 0
-        self._shrink_period: int = shrink_period #* BYTES_PER_MB
+        self._shrink_period: int = shrink_period * BYTES_PER_MB
         self._shrink_cnt: int = 0
+        self._shrink_factor: int = shrink_factor
 
         self._symbol_cnt: int = 0
 
@@ -40,22 +39,26 @@ class AdaptiveHuffmanTree:
     def symbol_cnt(self):
         return self._symbol_cnt
 
+    # @property  # inaccurate if shrunk
+    # def entropy(self) -> float:
+    #     ent = 0
+    #     stack = [self._root]
+
+    #     while stack:
+    #         node = stack[-1]
+    #         if isinstance(node, Node) and node.is_symbol:
+    #             p = node.weight / self._symbol_cnt
+    #             ent -= p * log2(p)
+
+    #         if node.left:
+    #             stack.append(node.left)
+    #             stack.append(node.right)
+
+    #     return ent
+
     @property
-    def entropy(self) -> float:
-        ent = 0
-        stack = [self._root]
-
-        while stack:
-            node = stack[-1]
-            if isinstance(node, Node) and node.is_symbol:
-                p = node.weight / self._symbol_cnt
-                ent -= p * log2(p)
-
-            if node.left:
-                stack.append(node.left)
-                stack.append(node.right)
-
-        return ent
+    def shrink_cnt(self) -> int:
+        return self._shrink_cnt
 
     def __str__(self):
         # (depth, Node)
@@ -258,7 +261,7 @@ class AdaptiveHuffmanTree:
                 shrink(node.right)
 
             if node.is_symbol:
-                node.shrink()
+                node.shrink(self._shrink_factor)
             else:
                 node.update_weight()
 

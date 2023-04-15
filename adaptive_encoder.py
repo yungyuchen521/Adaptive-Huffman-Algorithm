@@ -16,11 +16,14 @@ class AdaptiveEncoder:
     HEADER_SIZE = 4
     ALERT_PERIOD = BYTES_PER_MB
 
-    def __init__(self, bytes_per_symbol: int, verbose: int=0, shrink_period: int = 0):
+    def __init__(self, bytes_per_symbol: int, verbose: int=0, shrink_period: int = 0, shrink_factor: int = 2):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
 
+        assert 0 <= shrink_period < 2 ** BITS_PER_BYTE
+        assert 1 < shrink_factor < 2 ** BITS_PER_BYTE
         self._shrink_period: int = shrink_period
+        self._shrink_factor: int = shrink_factor
 
         self._verbose = verbose
 
@@ -34,6 +37,13 @@ class AdaptiveEncoder:
     def avg_code_len(self) -> float:
         return self._bit_written / self._symbol_cnt
 
+    @property
+    def compression_ratio(self) -> float:
+        org_size = self._symbol_cnt * self._bytes_per_symbol
+        zip_size = self.HEADER_SIZE + self._bit_written // BITS_PER_BYTE
+
+        return 1 - (zip_size / org_size)
+
     def encode(self, src_file_path: str, comp_file_path: Optional[str]=None):
         if comp_file_path is None:
             comp_file_path = f"{comp_file_path}.{COMP_FILE_EXTENSION}"
@@ -42,7 +52,7 @@ class AdaptiveEncoder:
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
             stream.write(chr(0) * self.HEADER_SIZE) # preserve space for header
 
-        self.tree = AdaptiveHuffmanTree(self._bytes_per_symbol, ENCODE_MODE, self._shrink_period)
+        self._tree = AdaptiveHuffmanTree(self._bytes_per_symbol, ENCODE_MODE, self._shrink_period)
         with open(src_file_path, "rb") as src, open(comp_file_path, "ab") as comp:
             istream = BitInStream(src, mode=IO_MODE_BYTE)
             ostream = BitOutStream(comp, mode=IO_MODE_BIT)
@@ -69,12 +79,18 @@ class AdaptiveEncoder:
 
         self._write_header(comp_file_path)
 
-    def export_statistics(self, export_path: Path):
+    def export_results(self, export_path: Path):
         with open(export_path, "w") as f:
+            f.write("params:\n")
+            f.write(f"bytes per symbol: {self._bytes_per_symbol}\n")
+            f.write(f"shrink period: {shrink_period}\n")
+            f.write(f"shrink factor: {self._shrink_factor}\n")
+
+            f.write("\nstatistics:\n")
             f.write(f"total symbols: {self._symbol_cnt}\n")
-            f.write(f"bits per symbol: {self._bits_per_symbol}\n")
-            # f.write(f"entropy: {self.tree.entropy}\n")
             f.write(f"average codeword length: {round(self.avg_code_len, 4)}\n")
+            f.write(f"compression ratio: {self.compression_ratio}\n")
+            f.write(f"shink counts: {self._tree.shrink_cnt}\n")
 
     def _export_progress(self):
         if self._verbose > 0 and self._symbol_cnt * self._bytes_per_symbol % self.ALERT_PERIOD == 0:
@@ -107,6 +123,7 @@ if __name__ == "__main__":
     bytes_per_symbol = int(kwargs.get("b", 1))
     verbose = int(kwargs.get("v", 0))
     shrink_period = int(kwargs.get("p", 0))
+    shrink_factor = int(kwargs.get("alpha", 2))
 
     src = kwargs["in"]
     comp = kwargs.get("out", f"{src}.{COMP_FILE_EXTENSION}")
@@ -115,4 +132,4 @@ if __name__ == "__main__":
     encoder.encode(src, comp)
 
     if export_path:
-        encoder.export_statistics(export_path)
+        encoder.export_results(export_path)

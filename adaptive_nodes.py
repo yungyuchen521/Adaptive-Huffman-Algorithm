@@ -86,9 +86,10 @@ class Node(BaseNode):
         assert not self.is_symbol
         self._weight = self._left.weight + self._right.weight
 
-    def shrink(self):
+    def shrink(self, factor: int=2):
         assert self.is_symbol
-        self._weight = max(1, self._weight // 2)
+        assert factor > 1
+        self._weight = max(1, self._weight // factor)
 
     def set_parent(self, parent):
         assert isinstance(parent, Node)
