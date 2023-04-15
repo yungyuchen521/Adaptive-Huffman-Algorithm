@@ -96,22 +96,17 @@ class HuffmanTree:
         self._code_len_dict: Dict[str, int] = {}
         self._cur: BaseNode  # for decoding only
 
-        self._adaptive: bool = kwargs.get("adaptive", False)
-
         if "symbol_distribution" in kwargs:
             self._build_by_distribution(kwargs["symbol_distribution"])
 
-            if self._adaptive is True:
-                self._set_code_dict(self._root, "")
-            else:
-                self._set_code_len_dict(self._root, 0)
-                self._build_by_code_len()
-                self._set_code_dict(self._root, "")
+            self._set_code_len_dict(self._root, 0)
+            self._build_by_code_len()
+            self._set_code_dict(self._root, "")
 
-                # ==================== for debug purpose only ==================== 
-                for symbol, code in self._code_dict.items():
-                    if len(code) != self._code_len_dict[symbol]:
-                        print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
+            # ==================== for debug purpose only ==================== 
+            for symbol, code in self._code_dict.items():
+                if len(code) != self._code_len_dict[symbol]:
+                    print(f"{symbol}: original code len = {self._code_len_dict[symbol]}, after rebuilt is {len(code)} ({code})")
         elif "code_len_dict" in kwargs:
             self._code_len_dict = kwargs["code_len_dict"]
             self._build_by_code_len()
