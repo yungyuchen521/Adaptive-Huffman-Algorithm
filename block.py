@@ -1,4 +1,5 @@
 from typing import Dict, List, Set
+import heapq
 
 from adaptive_nodes import Node
 
@@ -6,7 +7,7 @@ from adaptive_nodes import Node
 class _Block:
     def __init__(self, weight: int):
         self._weight: int = weight
-        self._nodes: List[Node] = [] # sorted in descending order by depth
+        self._nodes: List[Node] = [] # Min Heap by depth
 
     @property
     def weight(self):
@@ -18,22 +19,18 @@ class _Block:
 
     @property
     def rep(self) -> Node:
-        return self._nodes[-1]
+        return self._nodes[0]
 
     def insert(self, node: Node):
         assert node.weight == self._weight
-
-        i = 0
-        while i < self.size and node.depth < self._nodes[i].depth:
-            i += 1
-        
-        self._nodes.insert(i, node)
+        heapq.heappush(self._nodes, node)
 
     def remove(self, node: Node):
         self._nodes.remove(node)
+        heapq.heapify(self._nodes)
 
     def update(self):
-        self._nodes.sort()
+        heapq.heapify(self._nodes)
 
 class BlockManager:
     def __init__(self):
@@ -49,7 +46,7 @@ class BlockManager:
         self._block_dict[w].insert(node)
 
     def increment_node_weight(self, node: Node):
-        self._block_dict[node.weight].remove(node) # binary search?
+        self._block_dict[node.weight].remove(node)
         node.increment_weight()
         self.insert(node)
 

@@ -14,8 +14,8 @@ class BaseNode:
         self._depth: int = 0 if parent is None else parent._depth + 1
 
     def __str__(self):
-        # {parent id}->{id}, {weight}
-        return f"|{self._parent.id if self._parent else 'NA'}|->|{self._id}|, w={self._weight}"
+        # {parent id}->{id}, {weight}, {depth}
+        return f"|{self._parent.id if self._parent else 'NA'}|->|{self._id}|, w={self._weight}, d={self._depth}"
 
     @property
     def id(self):
@@ -72,7 +72,7 @@ class Node(BaseNode):
             return f"internal: {super().__str__()}"
 
     def __lt__(self, node):
-        return self._depth > node.depth
+        return self._depth < node.depth
 
     @property
     def order(self):

@@ -9,7 +9,7 @@ from bit_io_stream import (
     IO_MODE_BIT,
     IO_MODE_BYTE,
 )
-from adaptive_huffman_tree import AdaptiveHuffmanTree
+from adaptive_huffman_tree import AdaptiveHuffmanTree, DECODE_MODE
 
 
 class AdaptiveDecoder:
@@ -32,7 +32,7 @@ class AdaptiveDecoder:
         
         with open(src_file_path, "rb") as src, open(decomp_file_path, "wb") as decomp:
             self._parse_header(src)
-            tree = AdaptiveHuffmanTree(self._bytes_per_symbol)
+            tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE)
 
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
@@ -87,7 +87,7 @@ class AdaptiveDecoder:
 if __name__ == "__main__":
     kwargs = dict([arg.split("=") for arg in sys.argv[1:]])
     
-    verbose = int(kwargs.get("b", 0))
+    verbose = int(kwargs.get("v", 0))
     decoder = AdaptiveDecoder(verbose)
 
     src = kwargs["in"]

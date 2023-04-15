@@ -6,10 +6,16 @@ from adaptive_nodes import BaseNode, Node, NYT
 from block import BlockManager
 
 
+ENCODE_MODE = "ENCODE"
+DECODE_MODE = "DECODE"
+
 class AdaptiveHuffmanTree:
-    def __init__(self, bytes_per_symbol: int):
+    def __init__(self, bytes_per_symbol: int, mode: str):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
+
+        assert mode in (ENCODE_MODE, DECODE_MODE)
+        self._mode = mode
 
         self._symbol_cnt: int = 0
 
@@ -26,6 +32,10 @@ class AdaptiveHuffmanTree:
         # for decoder
         self._cur: BaseNode = self._root
     
+    @property
+    def symbol_cnt(self):
+        return self._symbol_cnt
+
     @property
     def entropy(self) -> float:
         ent = 0
@@ -128,7 +138,9 @@ class AdaptiveHuffmanTree:
             else:
                 raise AssertionError(str(node))
 
-            assert node.parent.depth + 1 == node.depth
+            if isinstance(node, Node):
+                assert node.parent.depth + 1 == node.depth
+
             node = node.parent
 
         return code
@@ -150,7 +162,8 @@ class AdaptiveHuffmanTree:
             weight=1,
             order=order,
         )
-        self._ord_node_dict[order] = new_node
+        if self._mode == ENCODE_MODE:
+            self._ord_node_dict[order] = new_node
 
         new_internal.set_left(self._nyt)
         new_internal.set_right(new_node)

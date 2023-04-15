@@ -9,7 +9,7 @@ from bit_io_stream import (
     IO_MODE_BYTE,
     IO_MODE_BIT,
 )
-from adaptive_huffman_tree import AdaptiveHuffmanTree
+from adaptive_huffman_tree import AdaptiveHuffmanTree, ENCODE_MODE
 
 
 class AdaptiveEncoder:
@@ -40,7 +40,7 @@ class AdaptiveEncoder:
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
             stream.write(chr(0) * self.HEADER_SIZE) # preserve space for header
 
-        self.tree = AdaptiveHuffmanTree(self._bytes_per_symbol)
+        self.tree = AdaptiveHuffmanTree(self._bytes_per_symbol, ENCODE_MODE)
         with open(src_file_path, "rb") as src, open(comp_file_path, "ab") as comp:
             istream = BitInStream(src, mode=IO_MODE_BYTE)
             ostream = BitOutStream(comp, mode=IO_MODE_BIT)
