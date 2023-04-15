@@ -2,7 +2,7 @@ from typing import BinaryIO, Optional
 import sys
 import io
 
-from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NME
+from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NME, BYTES_PER_MB
 from bit_io_stream import (
     BitInStream,
     BitOutStream,
@@ -14,11 +14,13 @@ from adaptive_huffman_tree import AdaptiveHuffmanTree, DECODE_MODE
 
 class AdaptiveDecoder:
     BITS_PER_READ = 256  # more convenient to strip off dummy bits
-    ALERT_PERIOD = 10**6
+    ALERT_PERIOD = BYTES_PER_MB
 
     def __init__(self, verbose: int=0):
         self._bits_per_symbol: int
         self._bytes_per_symbol: int
+
+        self._shrink_period: int
 
         self._verbose = verbose
 
@@ -32,7 +34,7 @@ class AdaptiveDecoder:
         
         with open(src_file_path, "rb") as src, open(decomp_file_path, "wb") as decomp:
             self._parse_header(src)
-            tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE)
+            tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE, self._shrink_period)
 
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
@@ -73,6 +75,8 @@ class AdaptiveDecoder:
 
         self._dummy_symbol_bytes = ord(stream.read(1))
         assert 0 <= self._dummy_symbol_bytes < self._bytes_per_symbol
+
+        self._shrink_period = ord(stream.read(1))
 
     def _trunc(self, decomp_file_path: str):
         # strip off dummy symbol bytes

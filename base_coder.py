@@ -2,7 +2,6 @@ from typing import Dict
 import logging
 
 from huffman_tree import HuffmanTree
-from utils import extended_chr
 
 
 class BaseStaticCoder:

@@ -2,7 +2,7 @@ from typing import Optional
 import sys
 from pathlib import Path
 
-from utils import BITS_PER_BYTE, COMP_FILE_EXTENSION, PROGRESS_FILE_NME
+from utils import BITS_PER_BYTE, COMP_FILE_EXTENSION, PROGRESS_FILE_NME, BYTES_PER_MB
 from bit_io_stream import (
     BitInStream,
     BitOutStream,
@@ -13,12 +13,14 @@ from adaptive_huffman_tree import AdaptiveHuffmanTree, ENCODE_MODE
 
 
 class AdaptiveEncoder:
-    HEADER_SIZE = 3
-    ALERT_PERIOD = 10**6 # 1 Mb
+    HEADER_SIZE = 4
+    ALERT_PERIOD = BYTES_PER_MB
 
-    def __init__(self, bytes_per_symbol: int, verbose: int=0):
+    def __init__(self, bytes_per_symbol: int, verbose: int=0, shrink_period: int = 0):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
+
+        self._shrink_period: int = shrink_period
 
         self._verbose = verbose
 
@@ -40,7 +42,7 @@ class AdaptiveEncoder:
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
             stream.write(chr(0) * self.HEADER_SIZE) # preserve space for header
 
-        self.tree = AdaptiveHuffmanTree(self._bytes_per_symbol, ENCODE_MODE)
+        self.tree = AdaptiveHuffmanTree(self._bytes_per_symbol, ENCODE_MODE, self._shrink_period)
         with open(src_file_path, "rb") as src, open(comp_file_path, "ab") as comp:
             istream = BitInStream(src, mode=IO_MODE_BYTE)
             ostream = BitOutStream(comp, mode=IO_MODE_BIT)
@@ -84,12 +86,13 @@ class AdaptiveEncoder:
         assert 0 <= self._dummy_codeword_bits < BITS_PER_BYTE
 
         with open(comp_file_path, "r+b") as f:
-            # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}
+            # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}{shrink period (Mb)}
 
             stream = BitOutStream(f, mode=IO_MODE_BYTE)
             stream.write(chr(self._bits_per_symbol))
             stream.write(chr(self._dummy_codeword_bits))
             stream.write(chr(self._dummy_symbol_bytes))
+            stream.write(chr(self._shrink_period))
 
 
 if __name__ == "__main__":
@@ -103,10 +106,12 @@ if __name__ == "__main__":
 
     bytes_per_symbol = int(kwargs.get("b", 1))
     verbose = int(kwargs.get("v", 0))
+    shrink_period = int(kwargs.get("p", 0))
+
     src = kwargs["in"]
     comp = kwargs.get("out", f"{src}.{COMP_FILE_EXTENSION}")
 
-    encoder = AdaptiveEncoder(bytes_per_symbol, verbose)
+    encoder = AdaptiveEncoder(bytes_per_symbol, verbose, shrink_period)
     encoder.encode(src, comp)
 
     if export_path:

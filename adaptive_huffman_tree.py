@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from math import log2
 
-from utils import BITS_PER_BYTE, extended_chr, extended_ord
+from utils import BITS_PER_BYTE, BYTES_PER_MB, extended_chr, extended_ord
 from adaptive_nodes import BaseNode, Node, NYT
 from block import BlockManager
 
@@ -10,12 +10,16 @@ ENCODE_MODE = "ENCODE"
 DECODE_MODE = "DECODE"
 
 class AdaptiveHuffmanTree:
-    def __init__(self, bytes_per_symbol: int, mode: str):
+    def __init__(self, bytes_per_symbol: int, mode: str, shrink_period: int = 0):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
 
         assert mode in (ENCODE_MODE, DECODE_MODE)
         self._mode = mode
+
+        assert shrink_period >= 0
+        self._shrink_period: int = shrink_period #* BYTES_PER_MB
+        self._shrink_cnt: int = 0
 
         self._symbol_cnt: int = 0
 
@@ -88,6 +92,10 @@ class AdaptiveHuffmanTree:
             self._update(node)
 
         self._block_manager.update()
+
+        if self._should_shrink():
+            self._shrink()
+    
         return code
 
     def decode(self, bit: str) -> Optional[str]:
@@ -100,10 +108,15 @@ class AdaptiveHuffmanTree:
             symbol = self._nyt.decode(bit)
 
             if symbol is not None:
+                self._symbol_cnt += 1
                 self._create_new_node(extended_ord(symbol))
                 # tree updated in create_new_node
+
                 self._cur = self._root
                 self._block_manager.update()
+
+                if self._should_shrink():
+                    self._shrink()
 
             return symbol
 
@@ -114,10 +127,16 @@ class AdaptiveHuffmanTree:
         )
 
         if isinstance(self._cur, Node) and self._cur.is_symbol:
+            self._symbol_cnt += 1
             symbol = extended_chr(self._cur.order, self._bits_per_symbol)
+
             self._update(self._cur)
             self._cur = self._root
             self._block_manager.update()
+
+            if self._should_shrink():
+                self._shrink()
+
             return symbol
         else:
             return None
@@ -224,3 +243,26 @@ class AdaptiveHuffmanTree:
         if node.left:
             self._update_depth(node.left)
             self._update_depth(node.right)
+
+    def _should_shrink(self) -> bool:
+        return (
+            self._shrink_period > 0 and isinstance(self._root, Node) and
+            self._symbol_cnt * self._bytes_per_symbol > self._shrink_period * (self._shrink_cnt+1)
+        )
+
+    def _shrink(self):
+        def shrink(node: Node):
+            if isinstance(node.left, Node):
+                shrink(node.left)
+            if isinstance(node.right, Node):
+                shrink(node.right)
+
+            if node.is_symbol:
+                node.shrink()
+            else:
+                node.update_weight()
+
+        assert self._should_shrink()        
+        self._shrink_cnt += 1
+        shrink(self._root)
+        self._block_manager.shrink()

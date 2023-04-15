@@ -32,6 +32,7 @@ class _Block:
     def update(self):
         heapq.heapify(self._nodes)
 
+
 class BlockManager:
     def __init__(self):
         self._block_dict: Dict[int, _Block] = {}  # {block.weight: block}
@@ -67,3 +68,11 @@ class BlockManager:
                 self._block_dict[w].update()
 
         self._updated_weights = set()
+
+    def shrink(self):
+        old_block_dict = self._block_dict
+        self._block_dict = {}
+
+        for old_block in old_block_dict.values():
+            for n in old_block._nodes:
+                self.insert(n)
