@@ -5,7 +5,7 @@ BYTES_PER_MB = 2**20
 
 COMP_FILE_EXTENSION = "comp"
 DECOMP_FILE_EXTENSION = "decomp"
-PROGRESS_FILE_NME = "progress.txt"
+PROGRESS_FILE_NAME = "progress.txt"
 
 
 def extended_ord(string: str) -> int:

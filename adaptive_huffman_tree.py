@@ -9,14 +9,14 @@ ENCODE_MODE = "ENCODE"
 DECODE_MODE = "DECODE"
 
 class AdaptiveHuffmanTree:
-    def __init__(self, bytes_per_symbol: int, mode: str, shrink_period: int = 0, shrink_factor: int = 2):
+    def __init__(self, bytes_per_symbol: int, mode: str, chunk_size: int = 0, shrink_factor: int = 2):
         self._bytes_per_symbol: int = bytes_per_symbol
         self._bits_per_symbol: int = bytes_per_symbol * BITS_PER_BYTE
 
         assert mode in (ENCODE_MODE, DECODE_MODE)
         self._mode = mode
 
-        self._shrink_period: int = shrink_period * BYTES_PER_MB
+        self._chunk_size: int = chunk_size * BYTES_PER_MB
         self._shrink_cnt: int = 0
         self._shrink_factor: int = shrink_factor
 
@@ -249,8 +249,8 @@ class AdaptiveHuffmanTree:
 
     def _should_shrink(self) -> bool:
         return (
-            self._shrink_period > 0 and isinstance(self._root, Node) and
-            self._symbol_cnt * self._bytes_per_symbol > self._shrink_period * (self._shrink_cnt+1)
+            self._chunk_size > 0 and isinstance(self._root, Node) and
+            self._symbol_cnt * self._bytes_per_symbol > self._chunk_size * (self._shrink_cnt+1)
         )
 
     def _shrink(self):

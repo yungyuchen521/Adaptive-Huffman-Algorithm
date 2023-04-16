@@ -2,7 +2,7 @@ from typing import BinaryIO, Optional
 import sys
 import io
 
-from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NME, BYTES_PER_MB
+from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NAME, BYTES_PER_MB
 from bit_io_stream import (
     BitInStream,
     BitOutStream,
@@ -20,7 +20,8 @@ class AdaptiveDecoder:
         self._bits_per_symbol: int
         self._bytes_per_symbol: int
 
-        self._shrink_period: int
+        self._chunk_size: int
+        self._shrink_factor: int
 
         self._verbose = verbose
 
@@ -34,7 +35,7 @@ class AdaptiveDecoder:
         
         with open(src_file_path, "rb") as src, open(decomp_file_path, "wb") as decomp:
             self._parse_header(src)
-            tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE, self._shrink_period)
+            tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE, self._chunk_size, self._shrink_factor)
 
             istream = BitInStream(src, mode=IO_MODE_BIT)
             ostream = BitOutStream(decomp, mode=IO_MODE_BYTE)
@@ -59,11 +60,11 @@ class AdaptiveDecoder:
 
     def _export_progress(self):
         if self._verbose > 0 and self._symbol_cnt * self._bytes_per_symbol % self.ALERT_PERIOD == 0:
-            with open(PROGRESS_FILE_NME, "w") as f:
+            with open(PROGRESS_FILE_NAME, "w") as f:
                 f.write(f"{self._symbol_cnt * self._bytes_per_symbol // self.ALERT_PERIOD} Mb compressed\n")
 
     def _parse_header(self, file_obj: BinaryIO):
-        # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}
+        # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}{shrink period (Mb)}{shrink factor}
 
         stream = BitInStream(file_obj, mode=IO_MODE_BYTE)
         self._bits_per_symbol = ord(stream.read(1))
@@ -76,7 +77,8 @@ class AdaptiveDecoder:
         self._dummy_symbol_bytes = ord(stream.read(1))
         assert 0 <= self._dummy_symbol_bytes < self._bytes_per_symbol
 
-        self._shrink_period = ord(stream.read(1))
+        self._chunk_size = ord(stream.read(1))
+        self._shrink_factor = ord(stream.read(1))
 
     def _trunc(self, decomp_file_path: str):
         # strip off dummy symbol bytes

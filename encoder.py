@@ -67,24 +67,16 @@ class Encoder(BaseStaticCoder):
 
         return 1 - comp_size / self.total_bytes
 
-    def export_statistics(self, dir_path: Path):
-        with open(dir_path/"stats.txt", "w") as f:
+    def export_results(self, export_path: Path):
+        with open(export_path, "w") as f:
+            f.write(f"{'='*10} params {'='*10}\n")
             f.write(f"bytes per symbol: {self._bytes_per_symbol}\n")
+
+            f.write(f"\n{'='*10} statistics {'='*10}\n")
             f.write(f"total symbols: {self._total_symbols}\n")
-
-        with open(dir_path/"distributions.txt", "w") as f:
-            for symbol, cnt in self._symbol_distributions.items():
-                f.write(f"{extended_ord(symbol)}: {cnt}\n")
-
-        with open(dir_path/"code.txt", "w") as f:
-            for symbol, code in self.code_dict.items():
-                f.write(f"{extended_ord(symbol)}: {code}\n")
-
-        with open(dir_path/"performance.txt", "w") as f:
             f.write(f"entropy: {self.entropy}\n")
             f.write(f"average codeword length: {self.code_len_per_symbol}\n")
-            f.write(f"compression ratio (including header): {self.get_compression_ratio(consider_header=True)}\n")
-            f.write(f"compression ratio (without header): {self.get_compression_ratio(consider_header=False)}\n")
+            f.write(f"compression ratio: {self.get_compression_ratio(consider_header=True)}\n")
 
     @property
     def total_symbols(self):
@@ -218,12 +210,11 @@ if __name__ == "__main__":
     if export_path:
         export_path = Path(export_path)
         if export_path.exists():
-            raise AssertionError("The folder already exists. Files inside may be overwritten!")
-        else:
-            os.mkdir(export_path)
+            raise AssertionError("The file already exists.")
 
     bytes_per_symbol = int(kwargs.get("b", 1))
     verbose = int(kwargs.get("v", 0))
+    
     src = kwargs["in"]
     comp = kwargs.get("out", f"{src}.{COMP_FILE_EXTENSION}")
 
@@ -231,4 +222,4 @@ if __name__ == "__main__":
     encoder.encode(src, comp)
 
     if export_path:
-        encoder.export_statistics(export_path)
+        encoder.export_results(export_path)
