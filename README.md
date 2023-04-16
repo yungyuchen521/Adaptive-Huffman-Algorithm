@@ -107,7 +107,7 @@ For details about chunk size & shrink factor, please refer to the report
 
 #### Sample Command
 ```shell script
-python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt
+python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt K=10 alpha=2
 ```
 
 ## Adaptive Decoder
