@@ -89,7 +89,7 @@ python decoder.py in=alexnet.pth.comp out=alexnet.pth.decomp
   </tr>
    <tr>
     <th>K</th>
-    <td>chunk size</td>
+    <td>chunk size (Mb)</td>
     <td>0 (the tree never shrink)</td>
   </tr>
   <tr>
