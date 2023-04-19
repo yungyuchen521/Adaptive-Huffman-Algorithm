@@ -126,8 +126,11 @@ Shrink the tree once in a while. Specifically:
 1. Split the file into chunks of equal size `K`.
 2. Whenever a chunk is fully encoded / decoded, divide the weight of each external node by `alpha`.
 3. Update weight of each internal node recursively
-For more details, please refer to report.pdf.
-This part is still in progress, there may be some bugs.
+
+**This part is still in progress, there may be some bugs.
+For more details, please refer to report.pdf.**
+
+
 #### Expected Results
 - The impact of prior distribution decays exponentially.
 - The tree becomes more "adaptive" toward the most recent distribution.
