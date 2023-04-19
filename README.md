@@ -1,10 +1,5 @@
-# Adaptive-Huffman-Algorithm
-
-## Environment
-- python 3.8.2
-- MacOS Monterey
-
-## Basic Encoder
+# Huffman Algorithm
+### Basic Encoder
 
 <table>
   <tr>
@@ -14,7 +9,7 @@
   </tr>
   <tr>
     <th>b</th>
-    <td>bytes per symbol</td>
+    <td>1 <= bytes per symbol <= 8</td>
     <td>must be provided</td>
   </tr>
   <tr>
@@ -39,7 +34,7 @@
 python encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt
 ```
 
-## Basic Decoder
+### Basic Decoder
 
 <table>
   <tr>
@@ -64,7 +59,8 @@ python encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt
 python decoder.py in=alexnet.pth.comp out=alexnet.pth.decomp
 ```
 
-## Adaptive Encoder
+# Adaptive Huffman Algorithm
+### Adaptive Encoder
 
 <table>
   <tr>
@@ -74,7 +70,7 @@ python decoder.py in=alexnet.pth.comp out=alexnet.pth.decomp
   </tr>
   <tr>
     <th>b</th>
-    <td>bytes per symbol</td>
+    <td>1 <= bytes per symbol <= 8</td>
     <td>must be provided</td>
   </tr>
   <tr>
@@ -87,30 +83,19 @@ python decoder.py in=alexnet.pth.comp out=alexnet.pth.decomp
     <td>path of the output file</td>
     <td>"{in}.comp"</td>
   </tr>
-   <tr>
-    <th>K</th>
-    <td>chunk size (Mb)</td>
-    <td>0 (the tree never shrink)</td>
-  </tr>
-  <tr>
-    <th>alpha</th>
-    <td>shrink factor</td>
-    <td>2</td>
-  </tr>
   <tr>
     <th>export</th>
     <td>export a summary of performance to the given file</td>
     <td>None (do not export)</td>
   </tr>
 </table>
-For details about chunk size & shrink factor, please refer to the report
 
 #### Sample Command
 ```shell script
-python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt K=10 alpha=2
+python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt
 ```
 
-## Adaptive Decoder
+### Adaptive Decoder
 
 <table>
   <tr>
@@ -134,3 +119,63 @@ python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.t
 ```shell script
 python adaptive_decoder.py in=alexnet.pth.comp out=alexnet.pth.decomp
 ```
+
+# Improved Adaptive Huffman Algorithm
+#### Modifications
+Shrink the tree once in a while. Specifically:
+1. Split the file into chunks of equal size `K`.
+2. Whenever a chunk is fully encoded / decoded, divide the weight of each external node by `alpha`.
+3. Update weight of each internal node recursively
+For more details, please refer to report.pdf.
+This part is still in progress, there may be some bugs.
+#### Expected Results
+- The impact of prior distribution decays exponentially.
+- The tree becomes more "adaptive" toward the most recent distribution.
+
+### Improved Adaptive Encoder
+
+<table>
+  <tr>
+    <th>ARGUMENTS</th>
+    <th>DETAIL</th>
+    <th>DEFAULT</th>
+  </tr>
+  <tr>
+    <th>b</th>
+    <td>1 <= bytes per symbol <= 8</td>
+    <td>must be provided</td>
+  </tr>
+  <tr>
+    <th>in</th>
+    <td>file to be compressed</td>
+    <td>must be provided</td>
+  </tr>
+  <tr>
+    <th>out</th>
+    <td>path of the output file</td>
+    <td>"{in}.comp"</td>
+  </tr>
+   <tr>
+    <th>K</th>
+    <td>0 <= chunk size (Mb) < 256</td>
+    <td>0 (the tree never shrink)</td>
+  </tr>
+  <tr>
+    <th>alpha</th>
+    <td>2 <= shrink factor < 256</td>
+    <td>2</td>
+  </tr>
+  <tr>
+    <th>export</th>
+    <td>export a summary of performance to the given file</td>
+    <td>None (do not export)</td>
+  </tr>
+</table>
+
+#### Sample Command
+```shell script
+python adaptive_encoder.py b=1 in=alexnet.pth out=alexnet.pth.comp export=perf.txt K=10 alpha=2
+```
+
+### Improved Adaptive Decoder
+same as `Adaptive Huffman Algorithm`
