@@ -1,7 +1,7 @@
-from typing import BinaryIO, Optional
+from typing import BinaryIO
 import sys
-import io
 
+from base_coder import BaseDecoder
 from utils import DECOMP_FILE_EXTENSION, BITS_PER_BYTE, PROGRESS_FILE_NAME, BYTES_PER_MB
 from bit_io_stream import (
     BitInStream,
@@ -12,27 +12,17 @@ from bit_io_stream import (
 from adaptive_huffman_tree import AdaptiveHuffmanTree, DECODE_MODE
 
 
-class AdaptiveDecoder:
+class AdaptiveDecoder(BaseDecoder):
     BITS_PER_READ = 256  # more convenient to strip off dummy bits
     ALERT_PERIOD = BYTES_PER_MB
 
     def __init__(self, verbose: int=0):
-        self._bits_per_symbol: int
-        self._bytes_per_symbol: int
+        super().__init__(verbose)
 
         self._chunk_size: int
         self._shrink_factor: int
 
-        self._verbose = verbose
-
-        self._symbol_cnt: int = 0
-        self._dummy_codeword_bits: int
-        self._dummy_symbol_bytes: int
-
-    def decode(self, src_file_path: str, decomp_file_path: Optional[str]=None):
-        if decomp_file_path is None:
-            decomp_file_path = f"{src_file_path}.{DECOMP_FILE_EXTENSION}"
-        
+    def decode(self, src_file_path: str, decomp_file_path: str):
         with open(src_file_path, "rb") as src, open(decomp_file_path, "wb") as decomp:
             self._parse_header(src)
             tree = AdaptiveHuffmanTree(self._bytes_per_symbol, DECODE_MODE, self._chunk_size, self._shrink_factor)
@@ -54,17 +44,25 @@ class AdaptiveDecoder:
                         ostream.write(symbol)
                         self._symbol_cnt += 1
 
-                        self._export_progress()
+                        if self._should_alert():
+                            self._export_progress()
 
         self._trunc(decomp_file_path)
 
     def _export_progress(self):
-        if self._verbose > 0 and self._symbol_cnt * self._bytes_per_symbol % self.ALERT_PERIOD == 0:
-            with open(PROGRESS_FILE_NAME, "w") as f:
-                f.write(f"{self._symbol_cnt * self._bytes_per_symbol // self.ALERT_PERIOD} Mb compressed\n")
+        with open(PROGRESS_FILE_NAME, "w") as f:
+            f.write(f"{self._symbol_cnt * self._bytes_per_symbol // self.ALERT_PERIOD} Mb compressed\n")
+        
+        self._alert_cnt += 1
 
     def _parse_header(self, file_obj: BinaryIO):
-        # {bits per symbol}{dummy codeword bits}{dummy codeword bytes}{shrink period (Mb)}{shrink factor}
+        """
+            bits per symbol: 1 byte
+            dummy codeword bits: 1 byte
+            dummy codeword bytes: 1 byte
+            shrink period (Mb): 1 byte
+            shrink factor: 1 byte
+        """
 
         stream = BitInStream(file_obj, mode=IO_MODE_BYTE)
         self._bits_per_symbol = ord(stream.read(1))
@@ -79,15 +77,6 @@ class AdaptiveDecoder:
 
         self._chunk_size = ord(stream.read(1))
         self._shrink_factor = ord(stream.read(1))
-
-    def _trunc(self, decomp_file_path: str):
-        # strip off dummy symbol bytes
-        if self._dummy_symbol_bytes == 0:
-            return
-
-        with open(decomp_file_path, "r+b") as f:
-            f.seek(-self._dummy_symbol_bytes, io.SEEK_END)
-            f.truncate()
 
 
 if __name__ == "__main__":

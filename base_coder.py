@@ -14,8 +14,8 @@ class BaseCoder:
         self._bytes_per_symbol: int = None
 
         # ===== dummies =====
-        self._dummy_symbol_bytes: int = None   # (total_bytes + dummy_symbol_bytes) % bytes_per_symbol must be 0
-        self._dummy_codeword_bits: int = None  # (bits_of_encoded_content + dummy_codeword_bits) % bits_per_byte must be 0
+        self._dummy_symbol_bytes: int = 0   # (total_bytes + dummy_symbol_bytes) % bytes_per_symbol must be 0
+        self._dummy_codeword_bits: int = 0  # (bits_of_encoded_content + dummy_codeword_bits) % bits_per_byte must be 0
 
         # ===== statistics =====
         self._symbol_cnt: int = 0
@@ -49,11 +49,6 @@ class BaseEncoder(BaseCoder):
     
     def _write_content(self, src_file_path: str, comp_file_path: str):
         raise NotImplementedError
-    
-    def _reset(self):
-        super()._reset()
-        self._symbol_cnt = 0
-        self._bits_written = 0
 
     def _get_header_size(self) -> int:
         raise NotImplementedError
